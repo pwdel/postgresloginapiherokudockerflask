@@ -169,6 +169,54 @@ However, we don't see the actual app being served on port 5000. However, we do s
 | postgres                              | 13-alpine       | 8c6053d81a45 | 159MB |
 
 
+Note that the above port mentioned is Port 5432/tcp. Note this is the PostgreSQL Database port, and it uses tcp protocol.
+
+One file that we have had which we haven't activated yet is the entrypoint.sh file.  If we take a look at this file:
+
+```
+#!/bin/sh
+
+if [ "$DATABASE" = "postgres" ]
+then
+    echo "Waiting for postgres..."
+
+    while ! nc -z $SQL_HOST $SQL_PORT; do
+      sleep 0.1
+    done
+
+    echo "PostgreSQL started"
+fi
+
+python server.py create_db
+
+exec "$@"
+```
+Basically, it is sort of a bootstrapping file which gets everything set up in order, including running the server.py file, which in turn instructs the app to serve on PORT 5000. However, we should also keep in mind that there is a paradigm within Docker that different services should be running in different containers, namely that the app should run in a different container than the Postgres database. It's not clear at the moment how the app is going to run or what part of our entire software setup here will allow that to happen.
+
+As of now, we have the entrypoint.sh file commented out within the Dockerfile.  We can change this in favor of our CMD to run the app.
+
+```
+# make entrypoint.sh executable
+RUN chmod +x entrypoint.sh
+
+# use entrypoint.sh as entrypoint
+ENTRYPOINT ["entrypoint.sh"]
+
+# command to run on container start
+# CMD [ "python", "./server.py" ] 
+```
+
+After doing this, we get an error: "no such file or directory" which means the file system is not pointing toward the entrypoint.sh properly. However, what we also notice is that there is an alternate way to run the flask file seperately from the Postgres database, with the following shell command:
+
+```
+$ docker build -f ./services/web/Dockerfile -t hello_flask:latest ./services/web
+$ docker run -p 5001:5000 \
+    -e "FLASK_APP=project/__init__.py" -e "FLASK_ENV=development" \
+    hello_flask python /usr/src/app/manage.py run -h 0.0.0.0
+```
+
+So basically we specify the exact file that we want to build, and then the port it should run on to check things for sanity purposes.
+
 ### Applying a Model to the Database
 
 manage.py

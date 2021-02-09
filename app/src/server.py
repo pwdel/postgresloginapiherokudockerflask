@@ -9,6 +9,8 @@ port = int(os.environ.get("PORT", 5000))
 
 app.config.from_object("project.config.Config")
 
+db = SQLAlchemy(app)
+
 def hello():
     return jsonify(answer="Hello World, Little Dude, How Are You?")
 

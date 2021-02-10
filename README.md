@@ -378,6 +378,94 @@ This may involve creating a new project structure.
 
 ### Creating Database Table
 
+So to enter a table into the database, we need some way to manage the database, which means a CLI.  For this, that means creating a manage.py and using [docker-compose exec](https://docs.docker.com/compose/reference/exec/) to run an arbitrary command within the service.
+
+manage.py:
+
+```
+from flask.cli import FlaskGroup
+
+import server, db
+
+cli = FlaskGroup(server)
+
+
+@cli.command("create_db")
+def create_db():
+    db.drop_all()
+    db.create_all()
+    db.session.commit()
+
+
+if __name__ == "__main__":
+    cli()
+```
+Basically this creates a command, "create_db" which allows us to run from the command line to apply a model to the database.
+
+Here again, if we had included a, "from src import server" we get a, "ModuleNotFoundError: No module named 'src'."  Basically, since the manage.py file is already in the src folder, there is no way to physically go in and import from it - so we do not include this portion, but rather just simply, "import server" which essentially imports our server.py file directly as a module.
+
+As far as the [FlaskGroup()](https://flask.palletsprojects.com/en/1.1.x/api/#flask.cli.FlaskGroup) function goes, this is a part of the Command Line Interface, CLI. FlaskGroup is basically a type of [AppGroup](https://flask.palletsprojects.com/en/1.1.x/api/#flask.cli.AppGroup) which wraps all functions in a folder within a group, and allows subcommands to be attached ,per [click.Group()](https://click.palletsprojects.com/en/7.x/api/#click.Group) as a dictionary of commands, a sort of library.
+
+Part of our confusion at this point is that we have a file named server.py and then within that file we have a function where we name the flask app, "server = Flask(__name__)" - which basically means, we have two things named "server," with different points of our program calling out, "server," creating a sort of spaghetti code.
+
+So to clean this up, we renamed, "server" as "app" within the server.py file. However, upon running the file again, we see that we can't seem to locate the module, "db." Rather than continue making spaghetti code, it would be good to do some refactoring to keep us going in a good direction.
+
+#### Refactoring
+
+Our designed project structure is:
+
+├── .env.dev
+├── .env.prod
+├── .env.prod.db
+├── .gitignore
+├── docker-compose.prod.yml
+├── docker-compose.yml
+└── services
+    ├── nginx
+    │   ├── Dockerfile
+    │   └── nginx.conf
+    └── web
+        ├── Dockerfile
+        ├── Dockerfile.prod
+        ├── entrypoint.prod.sh
+        ├── entrypoint.sh
+        ├── manage.py
+        ├── project
+        │   ├── __init__.py
+        │   └── config.py
+        └── requirements.txt
+
+
+So we started out by moving everything into the folders as shown in the above.
+
+After this shift, we are going to have to diagnose a lot of errors.
+
+##### Dockerfile
+
+* I started out by running the python files in roder of how they occur. Since we are trying to build a management app, we try to run manage.py first and debug the app itself one piece at a time, changing variable names to fit the project structure.
+
+* We need to address the Dockerfile symlinks message. This can be addressed by adding a, "." to the end of the command.
+
+```$ sudo docker build .```
+
+* The requirements.txt file was actually run twice in the Dockerfile, which is not desireable anyway!  Good catch. Once we eliminated the wrong filename from the requirements.txt file, that eliminated another error.
+
+After the three above changes, there is a need to work with docker-compose, which requires docker-compose.yml.
+
+* This required a change in the .env.dev file to use __init__.py
+* This also required a change in docker-compuse.yml to use __init__.py
+* We get a message, "unable to prepare context: unable to evaluate symlinks in Dockerfile path"  This is because of how the docker-compose.yml file is pointed toward the, "build" path. Previously it was set to, ./ because the Dockerfile was in the root directory, but now we are building in /services/web/ directory.
+
+```
+services:
+  web:
+    image: hello_flask
+    container_name: flask
+    build: ./services/web/
+```
+* With this, the image is properly built using composer.
+* Next we have to see if we can run it.
+
 ### Ensure Table Was Created
 
 ### Check Volume Was Created
@@ -435,6 +523,7 @@ manage.py
 
 ## References
 
+[Structuring Python Applications](https://docs.python-guide.org/writing/structure/)
 [Dockerizing Flask with Postgres, Gunicorn and Nginx](https://testdriven.io/blog/dockerizing-flask-with-postgres-gunicorn-and-nginx/)
 [Flask Mega Tutorial: Logins](https://blog.miguelgrinberg.com/post/the-flask-mega-tutorial-part-v-user-logins)
 [Flask-Login](https://flask-login.readthedocs.io/en/latest/)

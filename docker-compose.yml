@@ -4,8 +4,8 @@ services:
   web:
     image: hello_flask
     container_name: flask
-    build: ./
-    command: python server.py run -h 0.0.0.0
+    build: ./services/web/
+    command: python __init__.py run -h 0.0.0.0
     volumes:
       - ./app/:/src/
     ports:

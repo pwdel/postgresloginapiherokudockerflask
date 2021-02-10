@@ -17,12 +17,13 @@ To deploy a Flask App on Heroku using a Docker image, which uses Postgres and cr
 1. Use the basic [Flask app deployed on Heroku using Docker](https://github.com/pwdel/herokudockerflask) discussed above.
 2. In the Dockerfile, add volumes for Postgres and instructions to include a database as well as installation procedures.
 3. Start a new Heroku app, login and provision the app, ensuring that it works along with Postgres.
-4. Setup Web Forms on Flask, Allow Web Forms to Talk to Database
-5. Setup Password Hashing
-6. Use flask-login library, implement it.
-7. Setup User model
-8. Allow login and logout functionality
-9. Setup user registration
+4. Ensure database working
+5. Setup Web Forms on Flask, Allow Web Forms to Talk to Database
+6. Setup Password Hashing
+7. Use flask-login library, implement it.
+8. Setup User model
+9. Allow login and logout functionality
+10. Setup user registration
 
 ### Setting Up the Basic, Previously Used Flask App
 
@@ -349,8 +350,67 @@ server.config.from_object("config.Config")
 
 Thirdly, basedir = os.path.abspath(os.path.dirname(__file__)) seemed to work given the above, so there is likely no need to change it.
 
-Finally, we can try to build the entire app using docker-compose, including the database, so that they can run together.
+Finally, we can try to build the entire app using docker-compose, including the database, so that they can run together.  Once we have done this, we get the following (note - we had to modify docker-compose.yml to include container_name and image in order to shorten up and customize the names to how we wanted them:
 
+| CONTAINER ID | IMAGE              | COMMAND                | STATUS        | PORTS                  | NAMES |
+|--------------|--------------------|------------------------|---------------|------------------------|-------|
+| 00713c704200 | hello_flask        | "python server.py ru…" | Up 6 seconds  | 0.0.0.0:5000->5000/tcp | flask |
+| 03855169ac90 | postgres:13-alpine | "docker-entrypoint.s…" | Up 11 seconds | 5432/tcp               | db    |
+
+
+So now we are showing that both Postgres and Flask are running.  We are able to visit localhost:5000 to see the flask app, but we don't know for sure if Postgres is really working, and we don't have anything in the database yet.
+
+Before we move into production, we have a couple tasks that we should accomplish:
+
+1. Create the database table.
+2. Ensure the table was created.
+3. Check that the volume was created in Docker with "volume inspect"
+4. Add an entrypoint.sh to verify that Postgres is up and healthy *before* creating the database table and running the Flask development server.
+5. Install [Netcat](http://netcat.sourceforge.net/) networking utility to read and write across network connections using the TCP/IP protocol.
+6. Add SQL_HOST, SQL_PORT, DATABASE environmental variables for the entrypoint.sh script to ensure extant for database.
+7. Add some sample users to the table via a CLI command we build.
+
+After these are accomplished, we can start to move forward into production, which involves creating production env variables and a production Dockerfile.  We have already moved things into production once, and have implemented Gunicorn, so this should not be so much work.
+
+This may involve creating a new project structure.
+
+## Ensure Database Working
+
+### Creating Database Table
+
+### Ensure Table Was Created
+
+### Check Volume Was Created
+
+### Add entrypoint.sh to Verify Postgres Health
+
+### Install Netcat
+
+### Add Environmental Variables
+
+### Add Sample Users, Sample Data
+
+## Pushing to Production
+
+### Production .evn Files
+
+### Production Dockerfiles
+
+## Webforms on Flask
+
+## Password Hashing
+
+## Flask Login Library
+
+## User Model
+
+## Login and Logout Functionality
+
+## User Registration
+
+## Pushing Everything to Production
+
+## Conclusion
 
 
 

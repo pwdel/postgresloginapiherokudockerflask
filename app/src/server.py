@@ -1,4 +1,5 @@
 from flask import Flask, jsonify
+from flask_sqlalchemy import SQLAlchemy
 import os
 
 server = Flask(__name__)
@@ -6,10 +7,10 @@ server = Flask(__name__)
 port = int(os.environ.get("PORT", 5000))
 
 # pull the config file, per flask documentation
-# server.config.from_object("src.config.Config")
+server.config.from_object("config.Config")
 
 # pull the config file as a python file
-server.config.from_pyfile("config.py")
+# server.config.from_pyfile("config.cfg")
 
 # activate SQLAlchemy
 db = SQLAlchemy(server)

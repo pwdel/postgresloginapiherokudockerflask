@@ -277,12 +277,84 @@ Also that we should note that we have our config.py file within the /src folder,
 
 Previously, we had our @server.route("/") happening above our server.config.from_object() command, so it is not clear whether this may have not allowed something important, such as the database, to access this configuration when starting up.
 
+So, to try to make this easier, we put a config.cfg file rather than a config.py file with a class in the /src folder, and used only the variablenames as a test to see if we could successfully build.
+
+```
+    SQLALCHEMY_DATABASE_URI = "DATABASE"
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+```
+
 We also notice that the Config(object) class refers to SQAlchemy.  When we look at our main server.py code, we note that we have:
 
 ```
 db = SQLAlchemy(app)
 ```
 Which probably should be: "db = SQLAlchemy(server)" since we don't have anything named, "app."
+
+So with the above changes, we can attempt to build the image and run.  After doing so, we get the error:
+
+```
+NameError: name 'SQLAlchemy' is not defined
+```
+This is of course because we did not include, "from flask_sqlalchemy import SQLAlchemy" within our server.py docker file. So, we just rebuild and re-run.
+
+Upon fixing this, we then get a successful result, with the capability to view the flask app with a json output at port 5001. Confusingly, the terminal output reads the following:
+
+```
+* Serving Flask app "server" (lazy loading)                                                                                                              
+ * Environment: development                                                                                                                               
+ * Debug mode: on                                                                                                                                         
+ * Running on http://0.0.0.0:5000/ (Press CTRL+C to quit)                                                                                                 
+ * Restarting with stat                                                                                                                                   
+ * Debugger is active!                                                                                                                                    
+ * Debugger PIN: 137-442-796                                                                                                                              
+172.17.0.1 - - [10/Feb/2021 13:31:56] "GET / HTTP/1.1" 200 -  
+
+```
+
+* Why does the terminal say that we're hosting on port 5000 when really it's on 5001?
+* We're going to need the config.py file to be called in order to work with Docker-Compose specifically the object inside of that, how can we debug it?
+
+First, let's investigate how to pull from the config.py file, since this is going to be needed to fully deploy.
+
+
+What seems to be important in calling config.py is understanding:
+
+1) The application structure, basically how we have our folders laid out and what goes in which folder.
+2) Where the server.config.from_object("config.Config") function actually calls a particular object, based upon "config.Config" and the location of config.py.
+3) The basedir = os.path.abspath(os.path.dirname(__file__)) function.
+
+So first off, our application structure is as follows:
+
+└── .env.dev
+└── Dockerfile
+└── docker-compose.yml
+└── entrypoint.sh
+└── app
+    └── requirements.txt
+    └── src
+        └── server.py
+        └── config.py 
+
+Secondly, we don't know exactly where server.config.from_object("config.Config") is pulling the file. This call is what is known as an, "import" which in Python3 is known as an [absolute import](https://www.python.org/dev/peps/pep-0008/#imports) which is touched on in that documentation file. Basically this seems to indicate that our from_object("object") should point exactly to where the item is located, at src.config.Config. However, this migtht also mean that we should move the config.py file to the /app folder and simply access it with config.Config.
+
+First, we can try the src.config.Config method to see if this works.
+
+After attempting these two methods, we found that using the following code worked to call the config.py file properly, while keeping the config.py file in the src folder.:
+
+```
+# pull the config file, per flask documentation
+server.config.from_object("config.Config")
+```
+
+Thirdly, basedir = os.path.abspath(os.path.dirname(__file__)) seemed to work given the above, so there is likely no need to change it.
+
+Finally, we can try to build the entire app using docker-compose, including the database, so that they can run together.
+
+
+
+
+--------------
 
 
 If we want to add a management python cli within manage.py.

@@ -5,11 +5,21 @@ server = Flask(__name__)
 
 port = int(os.environ.get("PORT", 5000))
 
+# pull the config file, per flask documentation
+# server.config.from_object("src.config.Config")
+
+# pull the config file as a python file
+server.config.from_pyfile("config.py")
+
+# activate SQLAlchemy
+db = SQLAlchemy(server)
+
+
+# run server
 @server.route("/")
 
-app.config.from_object("project.config.Config")
 
-db = SQLAlchemy(app)
+# insert database model
 
 def hello():
     return jsonify(answer="Hello World, Little Dude, How Are You?")

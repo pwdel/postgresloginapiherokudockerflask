@@ -206,14 +206,93 @@ ENTRYPOINT ["entrypoint.sh"]
 # CMD [ "python", "./server.py" ] 
 ```
 
-After doing this, we get an error: "no such file or directory" which means the file system is not pointing toward the entrypoint.sh properly. However, what we also notice is that there is an alternate way to run the flask file seperately from the Postgres database, with the following shell command:
+After doing this, we get an error: "no such file or directory" which means the file system is not pointing toward the entrypoint.sh properly. 
+
+However, what we also notice is that there is an alternate way to run the flask file seperately from the Postgres database.  Basically, we have to build two seperate images and then run a second container seperately by feeding in the right environmental variables.
+
+There are three environmental variables we have:
 
 ```
-$ docker build -f ./services/web/Dockerfile -t hello_flask:latest ./services/web
-$ docker run -p 5001:5000 \
-    -e "FLASK_APP=project/__init__.py" -e "FLASK_ENV=development" \
-    hello_flask python /usr/src/app/manage.py run -h 0.0.0.0
+FLASK_APP
+FLASK_ENV
+DATABASE_URL
 ```
+And the images we have built are shown in the table above, which include "postgresloginapiherokudockerflask_web" as well as "postgres."
+
+The first command that we do is basically to build the Dockerfile.  We use [docker build options](https://docs.docker.com/engine/reference/commandline/build/):
+
+* "-f" to specify the file. We use this to specify a specific Dockerfile.
+* "-t" to tag the image once built.  So for example if we want to name the image, "flask_only:latest" we would put, "-t flask_only:latest" where the tag, "latest" will be applied to the name, "flask_only"
+* the ./ argument at the end shows where we are building from.
+
+```
+$ docker build -f ./Dockerfile -t flask_postgres:latest ./
+```
+Next, we run on port 5001:5000, seperate from the default Postgres port.  We use [docker run options](https://docs.docker.com/engine/reference/commandline/run/)
+
+* "-p" which allows us to select the port.
+* "-e" which allows us to set environmental variables
+
+```
+$ sudo docker run -p 5001:5000 \
+    -e "FLASK_APP=project/server.py" -e "FLASK_ENV=development" \
+    flask_postgres
+```
+
+So right away we get an, "invalid syntax" error, based upon the configuration file.
+
+```
+  File "/app/./server.py", line 10                                                                            
+    app.config.from_object("project.config.Config")                                                           
+    ^                                                                                                         
+SyntaxError: invalid syntax 
+```
+
+Part of what I should reflect on at this point is that I have not been using the standard naming conventions typically seen on Flask tutorials online. Rather than, "server.py" folks typically use __init__.py as the initialization file, and they may call the Flask application, "app" rather than server internally within that init file. At the same time, it's probably valuable, for learning purposes, to use a different naming structure, in order to force my way through this and understand how everything fundamentally connects together, rather than merely copying and pasting.
+
+So that being said, we have a invalid syntax error based upon a flask command. We can check out the [documentation here](https://flask.palletsprojects.com/en/1.1.x/config/). The documentation says under, "Configuring from Files,":
+
+> Configuration becomes more useful if you can store it in a separate file, ideally located outside the actual application package. This makes packaging and distributing your application possible via various package handling tools (Deploying with Setuptools) and finally modifying the configuration file afterwards.
+
+> So a common pattern is this:
+
+> app = Flask(__name__)
+> app.config.from_object('yourapplication.default_settings')
+
+For a complete explination of this exact line, we are referred to the [class flask.Config() documentation](https://flask.palletsprojects.com/en/1.1.x/api/#flask.Config). Further this documentation refers to [from_object(obj)](https://flask.palletsprojects.com/en/1.1.x/api/#flask.Config.from_object).
+
+> Objects are usually either modules or classes. from_object() loads only the uppercase attributes of the module/class. A dict object will not work with from_object() because the keys of a dict are not attributes of the dict class.
+
+Within our config.py file, we have the following class:
+
+```
+class Config(object):
+    SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "sqlite://")
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+```
+
+Also that we should note that we have our config.py file within the /src folder, along with our server.py folder.  Note that the Python documentation mentions:
+
+> Make sure to load the configuration very early on, so that extensions have the ability to access the configuration when starting up.
+
+Previously, we had our @server.route("/") happening above our server.config.from_object() command, so it is not clear whether this may have not allowed something important, such as the database, to access this configuration when starting up.
+
+We also notice that the Config(object) class refers to SQAlchemy.  When we look at our main server.py code, we note that we have:
+
+```
+db = SQLAlchemy(app)
+```
+Which probably should be: "db = SQLAlchemy(server)" since we don't have anything named, "app."
+
+
+If we want to add a management python cli within manage.py.
+
+```
+$ sudo docker run -p 5001:5000 \
+    -e "FLASK_APP=project/server.py" -e "FLASK_ENV=development" \
+    flask_only python /usr/src/app/manage.py run -h 0.0.0.0
+```
+
 
 So basically we specify the exact file that we want to build, and then the port it should run on to check things for sanity purposes.
 

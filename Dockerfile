@@ -19,7 +19,7 @@ RUN pip install -r requirements.txt
 COPY app/src/ .
 
 # use entrypoint.sh as entrypoint
-ENTRYPOINT ["/app/entrypoint.sh"]
+# ENTRYPOINT ["/app/entrypoint.sh"]
 
 # command to run on container start
-# CMD [ "python", "./server.py" ] 
+CMD [ "python", "./server.py" ] 

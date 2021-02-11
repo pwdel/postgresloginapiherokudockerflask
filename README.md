@@ -810,22 +810,247 @@ def seed_db():
 Basically, we are in the @cli for Flask. Once we are in this CLI, we are then calling: "session.add" - which appears to be an [SQAlchemy function talked about in the SQAlchemy Documentation](https://docs.sqlalchemy.org/en/14/orm/session_basics.html).  The [Flask CLI documentation](https://flask.palletsprojects.com/en/1.1.x/cli/) which is based upon [Click](https://click.palletsprojects.com/en/7.x/) menntions a few key points:
 
 * the Flask command is installed by Flask, and we have to specify the environment. We can check our .env.dev environmental variable to ensure that this is working.
-* 
+* We notice that upon logging into the environment using, "Docker Run," we get the following message: "Error: Could not locate a Flask application. You did not provide the "FLASK_APP" environment variable, and a "wsgi.py" or "app.py" module was not found in the current directory."
+* We also observe in the Flask CLI documentation a section on, "Custom Commands" which specifies a precise way of creating custom commands using, "Click."
+
+#### FLASK_APP Environment Variable
+
+* One troubleshooting document mentions using "" quotation marks around the app location. This seemed to change nothing.
+* [We can go inside of the Docker container](https://stackoverflow.com/questions/34051747/get-environment-variable-from-docker-container/34052766) and run: "echo "$ENV_VAR" to view environmental variables. When we do this, we see nothing.
+* [Where are environmental variables stored in linux?](https://stackoverflow.com/questions/532155/linux-where-are-environment-variables-stored) - they are evidently supposed to be stored at /proc/pid/environ, however when we look there, there is no pid.
+* According to Docker, [we can set the environmental variables in Compose](https://docs.docker.com/compose/environment-variables/). However, we already have this.
+* When we look at the environmental variables stored in /proc/1/environ, we see:
+
+```
+HOSTNAME=618d69db60c7
+PYTHON_PIP_VERSION=21.0.1
+HOME=/root
+PYTHONUNBUFFERED=1GPG_KEY=E3FF2839C048B25C084DEBE9B26995E310250568
+PYTHONDONTWRITEBYTECODE=1
+PYTHON_GET_PIP_URL=https://github.com/pypa/get-pip/raw/4be3fe44ad9dedc028629ed1497052d65d281b8e/get-pip.py
+TERM=xtermPATH=/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/binLANG=C.UTF-8
+PYTHON_VERSION=3.9.1
+PWD=/usr/src/app
+PYTHON_GET_PIP_SHA256=8006625804f55e1bd99ad4214fd07082fee27a1c35945648a58f9087a714e9d4
+```
+All of these variables appear to have been set in the Dockerfile, not docker-compose.yml.
+
+The [Docker Environmental Variables]() documentation mentions:
+
+> The “env_file” configuration option
+> You can pass multiple environment variables from an external file through to a service’s containers with the ‘env_file’ option, just like with docker run --env-file=FILE ...:
+> web:
+>  env_file:
+>    - web-variables.env
+
+So, we could try running "docker run --env-file=FILE" to insert the .env.dev file to see what happens.
+
+So we run:
+
+```
+sudo docker run \
+  -e "FLASK_APP=project/__init__.py" -e "FLASK_ENV=development" \
+  --rm -it hello_flask bash
+```
+Upon doing this, we do not see the "Error: Could not locate a Flask application. You did not provide the "FLASK_APP" environment variable" error.
+
+We can look for environmental variables. If we do, "echo "$ENV_VAR" then nothing comes up, however if we go to proc/1 and cat environ we see the same as above but with these variables added:
+
+```
+HOSTNAME=18a00084f5bf
+PYTHON_PIP_VERSION=21.0.1
+HOME=/rootPYTHONUNBUFFERED=1GPG_KEY=E3FF2839C048B25C084DEBE9B26995E310250568
+FLASK_APP=project/__init__.py
+PYTHONDONTWRITEBYTECODE=1
+PYTHON_GET_PIP_URL=https://github.com/pypa/get-pip/raw/4be3fe44ad9dedc028629ed1497052d65d281b8e/get-pip.py
+TERM=xtermPATH=/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+FLASK_ENV=development
+LANG=C.UTF-8
+PYTHON_VERSION=3.9.1
+PWD=/usr/src/app
+PYTHON_GET_PIP_SHA256=8006625804f55e1bd99ad4214fd07082fee27a1c35945648a58f9087a714e9d4root
+```
+Note that FLASK_APP is within that flatfile now.
+
+Going back outside of the runtime without killing it, in a new terminal we can see that we have the same CONTAINER_ID running at no port.
+
+So now if we try to add a seed to the database:
+
+```
+sudo docker-compose exec web python manage.py seed_db
+```
+
+We still get a, "User is not defined" error. Perhaps this is in part because we are using docker-compose, or because there is another container running.
+
+So what have we established here?  Basically we found that the environmental variables from .env.dev, or at least the ones for FLASK_APP="project/__init__.py" and
+FLASK_ENV=development, are not being fed into the Docker container when it is being built.
+
+We can take a look at [this article](https://www.techrepublic.com/article/how-to-use-docker-env-file/) on how to use the .env.dev file. This article mentions that there may be an order of operations on the docker-compose.yml file, in that certain processes can't access the .env.dev file because it's lower down. However it also mentions that by putting, "." at the beginning of the file extension, docker-compose treats it as flat. However we thought we should try it anyway...
+
+```
+services:
+  web:
+    env_file:
+      - .env.dev
+```
+
+1. sudo docker-compose up -d --build
+2. docker-compose exec web python manage.py create_db
+3. docker-compose exec web python manage.py seed_db
+
+No errors upon executing the build or create instructions, however the seed_db command still has the, "User is not defined" error.  Let's see if there are any environmental variables in this new container.
+
+```
+sudo docker run --rm -it hello_flask bash
+```
+Here we see that we still have the "You did not provide the FLASK_APP environment variable." So, we can try adding it manually:
+
+```
+    environment:
+      - FLASK_APP="project/__init__.py
+      - FLASK_ENV=development
+```
+Eliminating...
+
+```
+    env_file:
+      - .env.dev
+```
+Now in the logs we see:
+
+```
+flask  | Error: Could not import ""project".
+```
+
+Note that there was a small typo in the environmental variable with two "" symbols near each other.
+
+And logging into the container itself we still see:
+
+```
+Error: Could not locate a Flask application. You did not provide the "FLASK_APP" environment variable, and a "wsgi.py" or "app.py" module was not found in the current directory.
+```
+So fixing that, and adding additional environmental variables:
+
+```
+    environment:
+      - FLASK_APP=project/__init__.py
+      - FLASK_ENV=development
+      - DATABASE_URL=postgresql://hello_flask:hello_flask@db:5432/hello_flask_dev
+      - SQL_HOST=db
+      - SQL_PORT=5432
+      - DATABASE=postgres
+```
+
+However, we still have the same errors even with this setup.  [This stack overflow comment](https://stackoverflow.com/questions/58578973/docker-compose-not-passing-environment-variables-to-docker-container) takls about how doing a setup with both a Dockerfile and a docker-compose.yml file means that things run in two phases, and that most of the settings in the docker-compose.yml don't have an effect during the build stage, which includes environment variables, network settings and published ports. We also know there is a caching that happens with Docker, and that having a different order of operations may have different builds happen at different times.
+
+Also of note:
+
+* RUN during the build phase means that environment variables will not take effect, it just runs the file.
+* CMD will make things get recorded into the image, and then RUN.
+* ENTRYPOINT makes getting a debug shell harder, and there is a standard Docker first-time setup pattern that needs ENTRYPOINT for its own purposes. CMD is preferred.
+
+We add the following directly to the Dockerfile and docker-compose build:
+
+```
+# system ENV variables
+ENV FLASK_APP project/__init__.py
+ENV FLASK_ENV development
+ENV DATABASE_URL postgresql://hello_flask:hello_flask@db:5432/hello_flask_dev
+ENV SQL_HOST db
+ENV SQL_PORT 5432
+ENV DATABASE postgres
+```
+This creates different behavior upon logging into the container, there is a constant repeating, "waiting for SQL" error.  However if we take out the SQL variables, and feed in:
+
+```
+# system ENV variables
+ENV FLASK_APP project/__init__.py
+ENV FLASK_ENV development
+```
+The run "sudo docker run --rm -it hello_flask bash" - the environmental variable problem is gone upon logging into the container.
+
+So now, attempting to seed the database: "sudo docker-compose exec web python manage.py seed_db"
+
+We still get the "NameError: name 'User' is not defined" message. But, at least we eliminated the environmental variable problem.
 
 
+#### Custom Commands
 
+The [custom commands documentation for Flask](https://flask.palletsprojects.com/en/1.1.x/cli/) is implemented using [Click](https://palletsprojects.com/p/click/) with [full documentation here](https://click.palletsprojects.com/en/7.x/).
 
+Example:
 
+```
+import click
+from flask import Flask
+
+app = Flask(__name__)
+
+@app.cli.command("create-user")
+@click.argument("name")
+def create_user(name):
+    ...
+
+```
+Meanwhile, our manage.py command is:
+
+```
+from flask.cli import FlaskGroup
+from project import app, db
+
+@cli.command("seed_db")
+def seed_db():
+    db.session.add(User(email="test@test123.net"))
+    db.session.commit()
+```
+First off, looking at both the Flask CLI and Click documentation, we notice that there is a default "import click" at the top of the function. When we upgrade our requirements.txt file to install click, and add the following:
+
+```
+import click
+from flask.cli import FlaskGroup
+from project import app, db
+
+@cli.command("seed_db")
+def seed_db():
+  click.echo('hey there thanks for trying to see_db but this is just a dummy function')
+```
+After trying this out, and rebuilding, we do get an expected message as shown above. So we know for sure that the cli is working. However, User is not being passed for some reason. Reverting back to our database command...
+
+So it appears that, "User" is not being imported.  Thus we add the following to the top of our manage.py file:
+
+```
+from project import User
+```
+After rebuilding, we got a successful outcome.
 
 ### Checking the Database Locally
 
-$ docker-compose exec web python manage.py seed_db
+We then follow the following commands in both the terminal and then the SQL command interface to find that we have successfully seeded the database.
 
-$ docker-compose exec db psql --username=hello_flask --dbname=hello_flask_dev
+```
+$ sudo docker-compose exec db psql --username=hello_flask --dbname=hello_flask_dev                                        
+
+psql (13.1)                                                                                                                                                                      
+Type "help" for help.                                                                                                                                                            
+                                                                                                                                                                                 
+hello_flask_dev=# \c hello_flask_Dev                                                                                                                                             
+FATAL:  database "hello_flask_Dev" does not exist                                                                                                                                
+Previous connection kept                                                                                                                                                         
+hello_flask_dev=# \c hello_flask_dev                                                                                                                                             
+You are now connected to database "hello_flask_dev" as user "hello_flask".                                                                                                       
+hello_flask_dev=# select * from users;                                                                                                                                           
+ id |      email       | active                                                                                                                                                  
+----+------------------+--------                                                                                                                                                 
+  1 | test@test123.net | t 
+```
+
+Great!
 
 ## Pushing to Production
 
 ### Production .evn Files
+
+
 
 ### Production Dockerfiles
 

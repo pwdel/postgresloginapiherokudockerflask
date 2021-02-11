@@ -4,11 +4,16 @@ FROM python:3.9-slim-buster
 # set the working directory in the container
 WORKDIR /usr/src/app
 
-# set environment variables
+# set environment variables---------------------
 # prevent python from writing pyc files to disk
 ENV PYTHONDONTWRITEBYTECODE 1
+
 # prevent python from buffering stdout and stderr
 ENV PYTHONUNBUFFERED 1
+
+# system ENV variables
+ENV FLASK_APP project/__init__.py
+ENV FLASK_ENV development
 
 # install system dependencies
 RUN apt-get update && apt-get install -y netcat

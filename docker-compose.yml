@@ -5,13 +5,18 @@ services:
     image: hello_flask
     container_name: flask
     build: ./services/web
+    environment:
+      - FLASK_APP=project/__init__.py
+      - FLASK_ENV=development
+      - DATABASE_URL=postgresql://hello_flask:hello_flask@db:5432/hello_flask_dev
+      - SQL_HOST=db
+      - SQL_PORT=5432
+      - DATABASE=postgres
     command: python manage.py run -h 0.0.0.0
     volumes:
       - ./services/web/:/usr/src/app/
     ports:
       - 5000:5000
-    env_file:
-      - ./.env.dev
     depends_on:
       - db
   db:

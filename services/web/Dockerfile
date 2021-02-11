@@ -5,8 +5,13 @@ FROM python:3.9-slim-buster
 WORKDIR /usr/src/app
 
 # set environment variables
+# prevent python from writing pyc files to disk
 ENV PYTHONDONTWRITEBYTECODE 1
+# prevent python from buffering stdout and stderr
 ENV PYTHONUNBUFFERED 1
+
+# install system dependencies
+RUN apt-get update && apt-get install -y netcat
 
 # install dependencies
 RUN pip install --upgrade pip
@@ -17,8 +22,8 @@ COPY ./requirements.txt /usr/src/app/requirements.txt
 # install requirements
 RUN pip install -r requirements.txt
 
-# use entrypoint.sh as entrypoint
-# ENTRYPOINT ["/app/entrypoint.sh"]
+# copy project
+COPY . /usr/src/app/
 
-# command to run on container start
-CMD [ "python", "./server.py" ] 
+# run entrypoint.sh
+ENTRYPOINT ["/usr/src/app/entrypoint.sh"]

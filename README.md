@@ -328,13 +328,21 @@ What seems to be important in calling config.py is understanding:
 So first off, our application structure is as follows:
 
 └── .env.dev
+
 └── Dockerfile
+
 └── docker-compose.yml
+
 └── entrypoint.sh
+
 └── app
+
     └── requirements.txt
+
     └── src
+
         └── server.py
+
         └── config.py 
 
 Secondly, we don't know exactly where server.config.from_object("config.Config") is pulling the file. This call is what is known as an, "import" which in Python3 is known as an [absolute import](https://www.python.org/dev/peps/pep-0008/#imports) which is touched on in that documentation file. Basically this seems to indicate that our from_object("object") should point exactly to where the item is located, at src.config.Config. However, this migtht also mean that we should move the config.py file to the /app folder and simply access it with config.Config.
@@ -415,24 +423,43 @@ So to clean this up, we renamed, "server" as "app" within the server.py file. Ho
 Our designed project structure is:
 
 ├── .env.dev
+
 ├── .env.prod
+
 ├── .env.prod.db
+
 ├── .gitignore
+
 ├── docker-compose.prod.yml
+
 ├── docker-compose.yml
+
 └── services
+
     ├── nginx
+
     │   ├── Dockerfile
+
     │   └── nginx.conf
+
     └── web
+
         ├── Dockerfile
+
         ├── Dockerfile.prod
+
         ├── entrypoint.prod.sh
+
         ├── entrypoint.sh
+
         ├── manage.py
+
         ├── project
+
         │   ├── __init__.py
+
         │   └── config.py
+
         └── requirements.txt
 
 
@@ -466,15 +493,265 @@ services:
 * With this, the image is properly built using composer.
 * Next we have to see if we can run it.
 
+We use the custom build code:
+
+```
+sudo docker run -p 5001:5000 \
+    -e "FLASK_APP=project/services/web/__init__.py" -e "FLASK_ENV=development" \
+    hello_flask
+```
+
+When we run the above, we get an error referring to server.py. If we do a search in our project we see two more locations where this still exists:
+
+```
+./services/web/Dockerfile:
+   22  
+   23  # command to run on container start
+   24: CMD [ "python", "./server.py" ] 
+
+./services/web/entrypoint.sh:
+   12  fi
+   13  
+   14: python server.py create_db
+   15  
+   16  exec "$@"
+```
+
+We repaced these with the proper __init__.py file, however every time we try to run our Docker image, we get an error looking for server.py. So, we shut down all of our containers and removed all of our images to start off with a clean slate.
+
+Upon running sudo docker-compose build we get a slightly different command prompt that comes out:
+
+```
+Step 8/8 : CMD [ "python", "./services/web/project/__init__.py" ]
+
+```
+
+Of course, this does not spin up the actual database, which would need to be built through the entrypoint.sh file. But we're not that far yet, we just need to make sure the flask app is working.
+
+Fortunately this time we get a slightly different error,
+
+```
+python: can't open file '/usr/src/app/./services/web/project/__init__.py': [Errno 2] No such file or directory
+```
+
+Which basically means that the CMD file can't be executed. Which, based upon the build command we're trying to run which manually runs flask on port 5001, we don't even really need at the moment.
+
+Interestingly, when we run: "sudo docker-compose logs"
+
+We see that the db, postgres is running correctly.  However, we see:
+
+```
+flask  | python: can't open file '/usr/src/app/__init__.py': [Errno 2] No such file or directory 
+```
+Evidently, there is a way to actually go into the docker container and look at the actual running container through bash to find out where the file is aDockerfile in the proper location.  Currently in the dockerfile, we are using /usr/src/app as the location to copy the project, however the reality inside of the container may look different.
+
+After verifying that the Flask app is indeed running, we do:
+
+```
+sudo docker run --rm -it hello_flask bash
+```
+From this point we are actually logged into the container via bash and we have the following prompt:
+
+```
+root@25fdd88318d9:/usr/src/app# ls
+
+Dockerfile  entrypoint.sh  manage.py  project  requirements.txt  
+
+
+root@25fdd88318d9:/usr/src/app# cd project
+
+
+root@25fdd88318d9:/usr/src/app/project# ls
+
+__init__.py  __pycache__  config.py  
+```
+
+So from here, using 'pwd' we can see that the path we need to be using should be:
+
+```
+/usr/src/app/project/__init__.py
+```
+
+We can even test out the command within the root@container by running a python command. After doing so we get:
+
+```
+   Use a production WSGI server instead.
+ * Debug mode: off
+ * Running on http://0.0.0.0:5000/ (Press CTRL+C to quit)
+```
+##### docker-compose.yml
+
+The problem appears to have been in our docker-compose.yml file. Keep in mind, docker-compose uses the .yml file, whereas docker build uses the dockerfile. docker-compose.yml is a set of instructions just like the dockerfile. Previously we had:
+
+```
+    command: python __init__.py run -h 0.0.0.0
+    volumes:
+      - ./app/:/src/
+```
+
+However given what we know about the directory structure inside of the Dockerfile, we now need:
+
+```
+    build: ./services/web
+    command: python manage.py run -h 0.0.0.0
+    volumes:
+      - ./services/web/:/usr/src/app/
+```
+
+Note, since we're using the manage.py file to access everything, we need to make this file executable.  However, re-doing the image, we get:
+
+```
+ModuleNotFoundError: No module named 'config'
+```
+
+Which is tied to our config.py file and our from_object discussion above. So we now can change our __initi__.py file to:
+
+```
+# pull the config file, per flask documentation
+app.config.from_object("project.config.Config")
+```
+
+This error does not go away after running, so we may need to rebuild the image from scratch. However upon visiting localhost:5000 we now see that something is running, albiet with a typeerror.  Once we build everything again, we see an error free log through docker:
+
+```
+db     |                                                                                                                                                                         
+db     | PostgreSQL Database directory appears to contain a database; Skipping initialization
+db     | 
+db     | 2021-02-11 00:55:29.024 UTC [1] LOG:  starting PostgreSQL 13.1 on x86_64-pc-linux-musl, compiled by gcc (Alpine 10.2.1_pre1) 10.2.1 20201203, 64-bit
+db     | 2021-02-11 00:55:29.024 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+db     | 2021-02-11 00:55:29.024 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+db     | 2021-02-11 00:55:29.342 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+db     | 2021-02-11 00:55:29.759 UTC [21] LOG:  database system was shut down at 2021-02-11 00:51:42 UTC
+db     | 2021-02-11 00:55:29.897 UTC [1] LOG:  database system is ready to accept connections
+flask  |  * Serving Flask app "project/__init__.py" (lazy loading)
+flask  |  * Environment: development
+flask  |  * Debug mode: on
+flask  |  * Running on http://0.0.0.0:5000/ (Press CTRL+C to quit)
+flask  |  * Restarting with stat
+flask  |  * Debugger is active!
+flask  |  * Debugger PIN: 113-399-322
+
+```
+Of course over at localhost:5000 we still see an error, because we need to add to the database but overall we successfully launched the app and database.
+
 ### Ensure Table Was Created
+
+Next we can go and make sure the table was created with:
+
+```
+$ docker-compose exec web python manage.py create_db
+```
+We get the error: "NameError: name 'db' is not defined"
+
+This is because we have to import db on the manage.py file:
+
+```
+from project import app, db
+```
+
+Restart with:
+
+```
+docker-compose up -d --build
+```
+
+We are able to check the actual table with:
+
+```
+docker-compose exec db psql --username=hello_flask --dbname=hello_flask_dev
+```
+
+We see our SQL interface:
+
+```
+psql (13.1)                                                                                                                                                                      
+Type "help" for help. 
+```
+Checking for a list of databases with "\l"
+
+```
+                                        List of databases                                                                                                                        
+      Name       |    Owner    | Encoding |  Collate   |   Ctype    |      Access privileges                                                                                     
+-----------------+-------------+----------+------------+------------+-----------------------------                                                                               
+ hello_flask_dev | hello_flask | UTF8     | en_US.utf8 | en_US.utf8 |                                                                                                            
+ postgres        | hello_flask | UTF8     | en_US.utf8 | en_US.utf8 |                                                                                                            
+ template0       | hello_flask | UTF8     | en_US.utf8 | en_US.utf8 | =c/hello_flask             +                                                                               
+                 |             |          |            |            | hello_flask=CTc/hello_flask                                                                                
+ template1       | hello_flask | UTF8     | en_US.utf8 | en_US.utf8 | =c/hello_flask             +                                                                               
+                 |             |          |            |            | hello_flask=CTc/hello_flask 
+```
+Checking for a list of relations with "\dt":
+
+```
+          List of relations                                                                                                                                                      
+ Schema | Name  | Type  |    Owner                                                                                                                                               
+--------+-------+-------+-------------                                                                                                                                           
+ public | users | table | hello_flask  
+```
 
 ### Check Volume Was Created
 
+To check that the volume was created we do:
+
+```
+$ sudo docker volume ls
+```
+
+VOLUME NAME: postgresloginapiherokudockerflask_postgres_data                                         
+```
+$ sudo docker volume inspect postgresloginapiherokudockerflask_postgres_data
+```
+From here we get a result:
+
+```
+[                                                                                                                                                                                
+    {                                                                                                                                                                            
+        "CreatedAt": "2021-02-10T18:55:28-06:00",                                                                                                                                
+        "Driver": "local",                                                                                                                                                       
+        "Labels": {                                                                                                                                                              
+            "com.docker.compose.project": "postgresloginapiherokudockerflask",                                                                                                   
+            "com.docker.compose.version": "1.28.2",                                                                                                                              
+            "com.docker.compose.volume": "postgres_data"                                                                                                                         
+        },                                                                                                                                                                       
+        "Mountpoint": "/var/lib/docker/volumes/postgresloginapiherokudockerflask_postgres_data/_data",                                                                           
+        "Name": "postgresloginapiherokudockerflask_postgres_data",                                                                                                               
+        "Options": null,                                                                                                                                                         
+        "Scope": "local"                                                                                                                                                         
+    }                                                                                                                                                                            
+]  
+```
+Which shows that we have successfully created the volume.
+
+
 ### Add entrypoint.sh to Verify Postgres Health
+
+Basically, we updated entrypoint.sh which we already had in place.
 
 ### Install Netcat
 
+We install Netat and add the entrypoint command on the Dockerfile:
+
+```
+# install system dependencies
+RUN apt-get update && apt-get install -y netcat
+```
+This goes at the bottom:
+
+```
+# run entrypoint.sh
+ENTRYPOINT ["/usr/src/app/entrypoint.sh"]
+```
 ### Add Environmental Variables
+
+Environmental variables get added to the .env.dev file.
+
+```
+SQL_HOST=db
+SQL_PORT=5432
+DATABASE=postgres
+```
+
+These are basically placeholders.
 
 ### Add Sample Users, Sample Data
 

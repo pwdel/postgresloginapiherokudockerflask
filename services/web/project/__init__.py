@@ -7,7 +7,7 @@ app = Flask(__name__)
 port = int(os.environ.get("PORT", 5000))
 
 # pull the config file, per flask documentation
-app.config.from_object("config.Config")
+app.config.from_object("project.config.Config")
 
 # activate SQLAlchemy
 db = SQLAlchemy(app)

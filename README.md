@@ -753,7 +753,75 @@ DATABASE=postgres
 
 These are basically placeholders.
 
+After all of this, we can re-build the images and run containers.
+
+1. sudo docker-compose up -d --build
+2. visit localhost
+
+It's working the same, but with the specified no email error.
+
 ### Add Sample Users, Sample Data
+
+We can add a sample user with the following addition to manage.py
+
+```
+@cli.command("seed_db")
+def seed_db():
+    db.session.add(User(email="test@test123.net"))
+    db.session.commit()
+```
+We run this command with:
+
+```
+sudo docker-compose exec web python manage.py seed_db
+```
+However we get the error:
+
+```
+NameError: name 'User' is not defined
+```
+Not sure why this doesn't work at the moment.
+
+[The Flask Documents on models](https://flask-sqlalchemy.palletsprojects.com/en/2.x/models/) says:
+
+> Generally Flask-SQLAlchemy behaves like a properly configured declarative base from the declarative extension. As such we recommend reading the SQLAlchemy docs for a full reference. However the most common use cases are also documented here.
+
+What's important to realize is where the error is coming from. When diagnosing errors, the first level is to understand, "who" is reporting the error, and then try to solve the error at that level first.  In our case, we look at the code from manage.py:
+
+```
+from flask.cli import FlaskGroup
+
+from project import app, db
+
+cli = FlaskGroup(app)
+
+@cli.command("create_db")
+def create_db():
+    db.drop_all()
+    db.create_all()
+    db.session.commit()
+
+@cli.command("seed_db")
+def seed_db():
+    db.session.add(User(email="test@test123.net"))
+    db.session.commit()
+```
+
+Basically, we are in the @cli for Flask. Once we are in this CLI, we are then calling: "session.add" - which appears to be an [SQAlchemy function talked about in the SQAlchemy Documentation](https://docs.sqlalchemy.org/en/14/orm/session_basics.html).  The [Flask CLI documentation](https://flask.palletsprojects.com/en/1.1.x/cli/) which is based upon [Click](https://click.palletsprojects.com/en/7.x/) menntions a few key points:
+
+* the Flask command is installed by Flask, and we have to specify the environment. We can check our .env.dev environmental variable to ensure that this is working.
+* 
+
+
+
+
+
+
+### Checking the Database Locally
+
+$ docker-compose exec web python manage.py seed_db
+
+$ docker-compose exec db psql --username=hello_flask --dbname=hello_flask_dev
 
 ## Pushing to Production
 
@@ -800,6 +868,7 @@ manage.py
 
 ## References
 
+[Importing Models to Flask](https://stackoverflow.com/questions/52409894/cannot-import-app-modules-implementing-flask-cli)
 [Structuring Python Applications](https://docs.python-guide.org/writing/structure/)
 [Dockerizing Flask with Postgres, Gunicorn and Nginx](https://testdriven.io/blog/dockerizing-flask-with-postgres-gunicorn-and-nginx/)
 [Flask Mega Tutorial: Logins](https://blog.miguelgrinberg.com/post/the-flask-mega-tutorial-part-v-user-logins)

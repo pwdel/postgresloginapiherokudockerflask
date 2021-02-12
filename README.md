@@ -1353,17 +1353,33 @@ $ command: gunicorn app:app --log-file=-
 ```
 
 Basically, this seems to be a Heroku-specific way to get gunicorn going, but we need to test it out.
+
 ## Webforms on Flask
+
+https://blog.miguelgrinberg.com/post/the-flask-mega-tutorial-part-iii-web-forms
+
+
 
 ## Password Hashing
 
+https://flask-bcrypt.readthedocs.io/en/latest/
+
 ## Flask Login Library
+
+https://flask-login.readthedocs.io/en/latest/
 
 ## User Model
 
+https://flask-user.readthedocs.io/en/latest/data_models.html
+
 ## Login and Logout Functionality
 
+https://realpython.com/using-flask-login-for-user-management-with-flask/
+
+
 ## User Registration
+
+https://dev.to/imdhruv99/flask-login-register-logout-implementation-3hep
 
 ## Pushing Everything to Production
 

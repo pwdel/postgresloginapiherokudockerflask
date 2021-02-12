@@ -1048,12 +1048,311 @@ Great!
 
 ## Pushing to Production
 
-### Production .evn Files
+To review the above section, to test out our Docker container along with the freshly written, working code, we can remove all containers and images and then re-build them.
 
-https://testdriven.io/blog/dockerizing-flask-with-postgres-gunicorn-and-nginx/
+Once images and containers are built, the containers can be shut down, and then restarted again with:
+
+```
+sudo docker restart NAME
+```
+
+To verify whether the database and the app still, "talk to each other" after restarting we can do the following:
+
+1. sudo docker-compose up -d --build
+2. sudo docker-compose exec web python manage.py create_db
+3. sudo docker-compose exec web python manage.py seed_db
+
+We can then log back in to the database container specifically via:
+
+4. sudo docker-compose exec db psql --username=hello_flask --dbname=hello_flask_dev 
+
+Query the seeded database:
+
+5. select * from users;
+
+If the expected result comes up, then what you have is reproduceable.
+
+### Production Gunicorn
+
+For production environments, we need a WSGI HTTP server, so we use Gunicorn. This involves:
+
+* Adding gunicorn to the requirements.txt file.
+* Adding a command to open gunicorn in a production docker compose file, docker-compose.prod.yml.
+* I had already worked on putting together a [Heroku Flask app with Gunicorn here](https://github.com/pwdel/herokudockerflask).
+
+### Production docker-compose.prod.yml
+
+We make some changes to our development docker-compose.yml file, as follows:
+
+```
+version: '3.8'
+
+services:
+  web:
+    image: hello_flask
+    container_name: flask
+    build: ./services/web
+    command: gunicorn --bind 0.0.0.0:5000 manage:app
+    ports:
+      - 5000:5000
+    environment:
+      - FLASK_APP=project/__init__.py
+      - FLASK_ENV=production
+      - DATABASE_URL=postgresql://hello_flask:hello_flask@db:5432/hello_flask_dev
+      - SQL_HOST=db
+      - SQL_PORT=5432
+      - DATABASE=postgres
+    depends_on:
+      - db
+  db:
+    image: postgres:13-alpine
+    container_name: db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      - POSTGRES_USER=hello_flask
+      - POSTGRES_PASSWORD=hello_flask
+      - POSTGRES_DB=hello_flask_dev
+
+volumes:
+  postgres_data:
+```
+Since we are running Guniocorn rather than purely flask, the command: shows launching Guniocorn rather than flask. We also removed volume: from web since it is not needed.
+
+Note that rather than using an .env.prod. file we are just using hard coded environmental variables right here int he code, since it seems to have been a struggle to use a .env file previously. This is something that can be diagnosed seperately in the future as a part of refactoring. Also note that we changed the above environment to, "production."
+
+The database variables are standard user variables which we likely would not like to pass into production, or keep on a server on the web, hence the interest in putting variables into a .env file which can be ignored by a .gitignore.
+
+We would also keep the database variables in an .env.prod.db file, as follows:
+
+```
+POSTGRES_USER=hello_flask
+POSTGRES_PASSWORD=hello_flask
+POSTGRES_DB=hello_flask_prod
+
+```
+
+For production, the best case would actualy be to set those variables as hard-coded variables right on the server itself. However for the purposes of this repo, at least in the Readme file, we will keep them as is for demonstration purposes to show that they are there.
+
+We can then bring down the development containers and attempt to spin up new containers using:
+
+1. docker-compose down -v
+2. docker-compose -f docker-compose.prod.yml up -d --build
+
+Checking this at localhost:5000 we should see a sucess Hello World message.
+
+### entrypoint.prod.sh
+
+We create a new entrypoint.prod.sh file which takes out the manage.py file and ends with:
+
+```
+
+if [ "$FLASK_ENV" = "development" ]
+then
+    echo "Creating the database tables..."
+    python manage.py create_db
+    echo "Tables created"
+fi
+
+exec "$@"
+```
+
+Which basically checks if the FLASK_ENV = development, if so then we ...and we update the permissions, and then runs "exec "$@".
+
+We need to make this entrypoint.prod.sh file executable, so we use, "chmod +x services/web/entrypoint.prod.sh"
 
 ### Production Dockerfiles
 
+To be able to use the nwe entrypoint.prod.sh, we need a new production dockerfile, Dockerfile.prod.
+
+This is a, "multi-stage build" approach, where an initial image is created for creating Python wheels, then the wheels are copied over and the original builder imgage is disguarded.
+
+Hypothetically, we could have put all of this logic into one single dockerfile for both Dev and Prod.
+
+We also create a non-root user, rather than the default which Docker uses, a root user. This is better for security.
+
+* Add "as builder" to the Python version
+* Change to ENV FLASK_ENV production
+* Install [flake8 code checker](https://lintlyci.github.io/Flake8Rules/)
+
+```
+# lint
+RUN pip install --upgrade pip
+RUN pip install flake8
+COPY . /usr/src/app/
+RUN flake8 --ignore=E501,F401 .
+```
+
+* flake8 is a modular source code checker.
+* Ignoring 501 error (comments) and 401 error
+* Ignoring 401 error (multiple imports on one line)
+
+* RUN pip wheel --no-cache-dir --no-deps --wheel-dir /usr/src/app/wheels -r requirements.txt
+
+* pip wheel archives requirements and dependencies. Everything is being archived into requirements.txt.
+
+* create user groups in home folder.
+* RUN addgroup -S app && adduser -S app -G app
+* putting everything into $APP_HOME
+* RUN chown -R app:app $APP_HOME
+
+Finally, we modify our docker-compose.yml file to introduce the new Dockerfile.prod:
+
+web:
+  build:
+    context: ./services/web
+    dockerfile: Dockerfile.prod
+
+## Testing Out on Local Production
+
+We run the following to get things going:
+
+```
+$ sudo docker-compose -f docker-compose.prod.yml down -v
+$ sudo docker-compose -f docker-compose.prod.yml up -d --build
+```
+However, we get an error:
+
+ERROR: Service 'web' failed to build
+
+Fortunately, having installed flake8 we now have detailed logs of the build process.
+
+The main error which seems to have caused a problem is:
+
+```
+The command '/bin/sh -c flake8 --ignore=E501,F401 .' returned a non-zero code: 1
+```
+We can try to modify our flake8 command: "RUN flake8 --ignore=E501 ."  However this still resulted in an error, so 
+
+
+$ sudo docker-compose -f docker-compose.prod.yml exec web python manage.py create_db
+
+### Getting flake8 Working
+
+RUN flake8 --ignore=E501,F401 ./user/src/app
+
+### Getting addgroup and app Working
+
+Create app user, seperate from root.  There are several commands in the Docker file which could be used to do this.
+
+```
+RUN addgroup -S app && adduser -S app -G app
+```
+
+Change to the app user.
+```
+USER app
+```
+Make writable to app user.
+```
+RUN chown -R app:app $APP_HOME
+```
+
+## Pushing to Heroku
+
+We had dealt with this issue previously in the Github Repo on [heroku-docker-flask](https://github.com/pwdel/herokudockerflask).
+
+1. sudo docker login --username=_ --password=$(heroku auth:token) registry.heroku.com
+
+2. heroku create
+
+```
+Creating app... done, ⬢ pure-everglades-62431
+https://pure-everglades-62431.herokuapp.com/ | https://git.heroku.com/pure-everglades-62431.git
+```
+3. sudo heroku container:push web --app pure-everglades-62431
+
+When we do this, we get the message, "no images to push."
+
+Whereas in the past we built with, "docker build" we now built this particular project using "docker-compose," therefore we need to use the [heroku docker compose help guide](https://devcenter.heroku.com/articles/local-development-with-docker-compose).
+
+One tip that Docker recommends is to mount our code as a volume, which makes rebuilds unnecessary when code is changed.  This can be done:
+
+```
+services:
+  web:
+    volumes:
+      - ./webapp:/opt/webapp
+
+```
+...which we have already set for Postgres, but not our source code.
+
+Bascailly, we have to push to the heroku registry, and then release the code from the registry. How do we do this for a specific image?  Here is a reference to [Heroku CLI commands](https://devcenter.heroku.com/articles/heroku-cli-commands).
+
+1. sudo heroku container:login
+2. sudo heroku container:push --recursive
+
+When we do this from the /services/web directory, it evidently pushes our Dockerfile to Heroku, however it may not push Dockerfile.prod.
+
+We tried it and it gave a successful result, but then we have to release with:
+
+3. sudo heroku container:release
+
+This gives two options, either:
+
+4. A) sudo heroku container:release web
+4. B) sudo heroku container:release web worker
+
+We are not sure which one to use at the moment, so we just picked, "Web"
+
+From here, we got a mesage, "Expected response to be successful, got 404" - however upon looking at Heroku, we see nothing updated.
+
+Instead, we looked at what our production image appeared to be, which looked to be the larger image (since a smaller image got tagged over)
+
+1. $ sudo docker tag 35b4695ba3f3 registry.heroku.com/pure-everglades-62431/web
+
+We then look at images and see there is an image named:
+
+registry.heroku.com/pure-everglades-62431/web
+
+So we then run:
+
+2. $ sudo docker push registry.heroku.com/pure-everglades-62431/web
+
+After running this, we got a bunch of messages saying, "pushed" and a final message:
+
+```
+latest: digest: sha256:(long string) size: 2834 
+```
+
+So now that we pushed to the registry, we can release it:
+
+$ heroku container:release web
+
+```
+Releasing images web to pure-everglades-62431... done
+
+```
+If there are multiple images, then you would do, "heroku container:release web worker"
+
+After having pushed the app, we see that there is an application error at:
+
+https://pure-everglades-62431.herokuapp.com/
+
+We get the following log errors:
+
+```
+2021-02-12T18:44:19.053709+00:00 heroku[web.1]: State changed from starting to crashed
+
+2021-02-12T18:45:33.913318+00:00 heroku[router]: at=error code=H10 desc="App crashed" method=GET path="/" host=pure-everglades-62431.herokuapp.com request_id=a20a02f8-3251-4b74-886b-87b9828b3edf fwd="207.153.48.94" dyno= connect= service= status=503 bytes= protocol=https
+
+2021-02-12T18:45:34.045732+00:00 heroku[router]: at=error code=H10 desc="App crashed" method=GET path="/favicon.ico" host=pure-everglades-62431.herokuapp.com request_id=b66d927b-2390-42c8-bcab-6d9f1dedfcd7 fwd="207.153.48.94" dyno= connect= service= status=503 bytes= protocol=https
+```
+We can view the complete [Heroku Error Codes here](https://devcenter.heroku.com/articles/error-codes#h10-app-crashed).
+
+This is likely something to do with the procfile, and how gunicorn is serving the app.  Actually, I'm not even sure if the production docker image is using, "docker-compose.prod.yml" and this may take some time to figure out. However, my suspicion is that the following command:
+
+```
+$ command: gunicorn --bind 0.0.0.0:5000 manage:app
+```
+
+May need to be instead:
+
+```
+$ command: gunicorn app:app --log-file=-
+```
+
+Basically, this seems to be a Heroku-specific way to get gunicorn going, but we need to test it out.
 ## Webforms on Flask
 
 ## Password Hashing

@@ -21,7 +21,6 @@ class User(db.Model):
     def __init__(self, email):
         self.email = email
 
-
 # run app
 @app.route("/")
 

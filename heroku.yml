@@ -1,0 +1,9 @@
+#build:
+#  docker:
+#    web: Dockerfile.prod
+#run:
+#  web: gunicorn --bind 0.0.0.0:$PORT manage:app
+#release:
+#  image: web
+#  command:
+#    - python manage.py

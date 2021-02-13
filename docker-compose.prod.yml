@@ -7,9 +7,7 @@ services:
     build: 
       context: ./services/web
       dockerfile: Dockerfile.prod
-    command: gunicorn --bind 0.0.0.0:5000 manage:app
-    ports:
-      - 5000:5000
+    command: gunicorn --bind 0.0.0.0:$PORT manage:app
     environment:
       - FLASK_APP=project/__init__.py
       - FLASK_ENV=production
@@ -27,7 +25,7 @@ services:
     environment:
       - POSTGRES_USER=hello_flask
       - POSTGRES_PASSWORD=hello_flask
-      - POSTGRES_DB=hello_flask_dev
+      - POSTGRES_DB=hello_flask_prod
 
 volumes:
   postgres_data:

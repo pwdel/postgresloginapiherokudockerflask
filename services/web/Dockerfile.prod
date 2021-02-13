@@ -71,3 +71,6 @@ COPY . $APP_HOME
 
 # run entrypoint.prod.sh
 ENTRYPOINT ["/home/app/web/entrypoint.prod.sh"]
+
+# boot up and run Gunicorn
+CMD gunicorn --bind 0.0.0.0:$PORT manage:app

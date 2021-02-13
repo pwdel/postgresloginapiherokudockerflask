@@ -1340,7 +1340,7 @@ We get the following log errors:
 ```
 We can view the complete [Heroku Error Codes here](https://devcenter.heroku.com/articles/error-codes#h10-app-crashed).
 
-This is likely something to do with the procfile, and how gunicorn is serving the app.  Actually, I'm not even sure if the production docker image is using, "docker-compose.prod.yml" and this may take some time to figure out. However, my suspicion is that the following command:
+This is likely something to do with whatever the equivalent to the Heroku procfile is in this situation and how gunicorn is serving the app.  Actually, I'm not even sure if the production docker image is using, "docker-compose.prod.yml" and this may take some time to figure out. However, my suspicion is that the following command:
 
 ```
 $ command: gunicorn --bind 0.0.0.0:5000 manage:app
@@ -1353,6 +1353,196 @@ $ command: gunicorn app:app --log-file=-
 ```
 
 Basically, this seems to be a Heroku-specific way to get gunicorn going, but we need to test it out.
+
+Another thought - we had essentially deactivated debugging and error codes for production mode by taking out flake8.
+
+### Researching the H10 App Crashed Error
+
+* [Docker Compose Deployment to Heroku Fails](https://stackoverflow.com/questions/61736161/docker-compose-deployment-to-heroku-fails-using-heorku-yml-heroku-at-error-code)
+* [Heroku Containerized App Won't Run - Error H10](https://stackoverflow.com/questions/64453383/heroku-containerized-app-wont-run-error-code-h10)
+* [Problem on Deploying Docker Image on Heroku](https://stackoverflow.com/questions/62957520/problem-on-deploying-docker-image-on-heroku-react-app)
+
+Notes on the above:
+
+* Stackoverflow users don't find a lot of information to help with this.
+* The Heroku Error Codes Docs just say, "H10 - App Crashed - A crashed web dyno or a boot timeout on the web dyno will present this error."
+* Further in the docs, error R10 also mentions boot timeout, due to non-port binding.
+* So basically, we are told this is either 1) Boot timeout or 2) Regular crash due to something else.
+
+What is a boot timeout and what other types of timeouts are there?
+
+[Wikpedia article](https://en.wikipedia.org/wiki/Timeout_(computing)):
+
+> * Time-out has different meanings. 1. Network parameter, an enforced event designed to occur at the conclusion of an elapsed time. 2. System parameter, an event designed to occur after a time, unless another event occurs first.
+> HTTP Connections - web servers save open connections, which consumes CPU time and memory. Timeouts are designed in after about 5 minutes of inactivity.
+
+So somehow, Heroku has built-in timeouts, which likely they set, on their system. What could cause a timeout? Some boot-up process is likely not happening, which is likely Gunicorn.
+
+Without implementing flake8, which we are not even sure will give us more information, we can try playing around with Gunicorn. Alternatively, [there is a way to up the Boot timeout limit for ports on Heroku](https://devcenter.heroku.com/articles/limits#dynos).
+
+What is happening in our gunicorn command?  [Here are the Guniocorn docs](https://docs.gunicorn.org/en/stable/configure.html). 
+
+```
+    command: gunicorn --bind 0.0.0.0:5000 manage:app
+      ports:
+      - 5000:5000
+```
+#### What is "gunicorn --bind 0.0.0.0:5000 manage:app" Saying?
+
+* [Gunicorn Docs](https://docs.gunicorn.org/en/stable/settings.html) - Gunicorn is a WSGI HTTP server. This means, at a minimum, it understands URL's and the HTTP protocol. It delivers content from the hosted website to the user's device. Basically requests, or the messaging layer, transport layer are done via HTTP messages. These messages include a "message" and a "stream" which includes headers, continuation, and data. Basically it's a layered file that includes all sorts of messaging and port information. We need to be able to feed the right key pices of infomation into that HTTP file, the Host, Port, and message.
+* --bind or -b is the socket to bind. "0.0.0.0" means, "whatever port" and then 5000 is the specified port.
+* manage:app follows the pattern $(MODULE_NAME):$(VARIABLE_NAME) and in gunicorn is called out as: "$ gunicorn [OPTIONS] APP_MODULE" -- so basically, manage:app is our APP_MODULE.
+* The variable name $(VARIABLE_NAME) refers to a WSGI callable that should be found in the specified module. The VARIABLE_NAME can be a function call, in this case, "app" which is a function included in our python application.
+* The Wikipedia [WSGI](https://en.wikipedia.org/wiki/Web_Server_Gateway_Interface) artiocle states that it's a Web Server Gateway Interface, and that isa calling convention for web servers to forward requests to web applications or frameworks written in Python. [he standard python documents can be found here](https://www.python.org/dev/peps/pep-3333/) it's basically an interface between Python apps and web servers. 
+* So basically, we are going into manage.py and using "app" which refers to the application that has been built and bound together everything in the, "app" module, which includes __init__.py and everything in the project folder.
+
+
+* [Docker Compose .yml Specification](https://github.com/compose-spec/compose-spec/blob/master/spec.md) 
+* "command" overrides the default command declared by the container image (e.g. by the Dockerfile CMD). So we don't have any CMD in our Dockerfile.prod, which means it's not over-riding anything, so this seems to be *the* command specifying the port for Gunicorn to run on.
+* We may need to understand a bit more about what our Dockerfile actually does. For example, ["pip wheel"](https://pip.pypa.io/en/stable/reference/pip_wheel/) and [Python Specification on Wheel](https://www.python.org/dev/peps/pep-0427/#abstract) which basically states that Wheel is a Zip-format archive file with the .whl extension which is designed to "zip" up an application before it gets "unzipped" during installation.
+* "RUN pip wheel --no-cache-dir --no-deps --wheel-dir /usr/src/app/wheels -r requirements.txt" seems to take the requirements.txt file and zips it up, whereas "COPY --from=builder /usr/src/app/wheels /wheels COPY --from=builder /usr/src/app/requirements.txt ." evidently unzips the file and extracts it.
+* Note in the Docker file there are some other, "User group" points which we commented out. This is something we can go back and fix later, but had worked locally in production mode.
+* What about     ports: - 5000:5000 ?   The [docker-compose command line reference](https://docs.docker.com/compose/reference/) and specifically the [reference to docker-compose port](https://docs.docker.com/compose/reference/port/) 
+* How do we know to use, "command" vs. "run" in our compose.yml for gunicorn? 
+
+
+* [Heroku Gunicorn Docs](https://devcenter.heroku.com/articles/python-gunicorn)
+* Gunicorn is designed to process HTTP requests concurrently. We could just serve Python up as its own app, but that does not make as much efficient use of dyno resources vs. applications which process one request as a time. Django and Flask include built-in web servers, but those only process a single request at a time.
+* I can't find any official documentation on what the official ports are for Heroku and Gunicorn, but some Q&A's reference 8000 rather than 5000.
+
+Ultimately, we need to first see if Gunicorn is even running on our local environment.
+
+1. Log into Docker Container. sudo docker run --rm -it app_name bash
+2. Inspect the file structure.
+
+We have:
+
+home/app/web/
+
+Dockerfile Dockerfile.prod entrypoint.prod entrypoint.sh manage.py project requirements.txt
+
+home/app/web/project
+
+__init__.py  __pycache__  config.py
+
+It doesn't seem like we should have Dockerfile and entrypoint.sh in the home/app/web file, so that is a bit confusing.
+
+Side note - in the Dockerfile.prod file, there may be an order of operations problem, in that we start Gunicorn after the environmental variables get set.
+
+So to test out if Gunicorn we can curl http://localhost:5000
+
+root@docker$ apt-get update; apt-get install curl
+
+However, this feeds back an error, perhaps because the http is being served externally rather than internally.
+
+```
+curl: (7) Failed to connect to localhost port 5000: Connection refused
+```
+
+Internally to our flask app, __init__.py, we see the following line, which specifies port 5000.  This seems to show that Flask is actually serving on port 5000, while Gunicorn may be attempting to serve also on Port 5000.
+
+```
+port = int(os.environ.get("PORT", 5000))
+```
+So that being said, we could have Gunicorn serve on 8000 within Docker, and then try to host on 8000 vs. 5000 and see if it works.
+
+```
+    command: gunicorn --bind 0.0.0.0:8000 manage:app
+    ports:
+      - "8000:8000"
+```
+
+So we do a build and then bring the file up with:
+
+```
+$ sudo docker-compose -f <production_compose.yml> up -d --build
+```
+
+So after doing this, we now see that we have two docker images that were created - the larger one appears to have actually been the intermediary image.  This may have been the problem, that we actually pushed the wrong image, the larger one, to Heroku, rather than the smaller one which is actually serving the app with Gunicorn on port 8000.
+
+| REPOSITORY  | TAG    | IMAGE ID     | CREATED            | SIZE  |
+|-------------|--------|--------------|--------------------|-------|
+| hello_flask | latest | b7f5050b3cc6 | 38 seconds ago     | 163MB |
+| <non>       | <none> | (ID)         | about a minute ago | 228MB |
+
+
+We push again, using the tag and release methodology, but we still get an app crash.
+
+Interestingly, this [Stack Overflow Article](https://stackoverflow.com/questions/14322989/first-heroku-deploy-failed-error-code-h10) mentions that the PORT gets dynamically assigned by Heroku.
+
+Further, the [Heroku documentation](https://devcenter.heroku.com/articles/dynos#web-dynos) mentions that "A web dyno must bind to its assigned $PORT within 60 seconds of startup."  This implies there is a dynamic, rather than a fixed port, supplied by Heroku.
+
+Looking at [this article on deploying Vue/Flask to Heroku](https://testdriven.io/blog/deploying-flask-to-heroku-with-docker-and-gitlab/#docker), they recommend running the gunicorn command right in the Dockerfile, which looks like this:
+
+```
+CMD gunicorn -b 0.0.0.0:5000 app:app --daemon && \
+      sed -i -e 's/$PORT/'"$PORT"'/g' /etc/nginx/conf.d/default.conf && \
+      nginx -g 'daemon off;'
+```
+Hypothetically we can translate this same command into our Dockerfile.prod.
+
+[This article on deploying Django to Heroku](https://testdriven.io/blog/deploying-django-to-heroku-with-docker/) mentions using a heroku.yml file with commands, although we didn't need to do that in our previous herokuflask project.  This appears to be something that we use if deploying using Github, it's basically instructions on the build given to Github. The tutorial mentions that commands can be moved from the Dockerfile.yml to the Heroku.yml file, which is basically another form of Dockerfile.
+
+What they show for the Django application is the following:
+
+```
+build:
+  docker:
+    web: Dockerfile
+run:
+  web: gunicorn hello_django.wsgi:application --bind 0.0.0.0:$PORT
+```
+So evidently the $PORT variable is [set by Heroku at runtime](https://help.heroku.com/PPBPA231/how-do-i-use-the-port-environment-variable-in-container-based-apps).
+
+```
+When deploying a container app on Heroku, we require that Dockerfiles be configured to intake the randomly assigned port on a dyno - exposed as the $PORT environmental variable.
+
+```
+
+So that being said, we take out ports: "8000:8000" and change the following line in our docker-compose.prod.yml file:
+
+```
+    command: gunicorn --bind 0.0.0.0:$PORT manage:app
+```
+
+Once we did this, then the app did not just immediately crash, but there was a slightly different error.  
+
+Another problem we may have, looking at Heroku is that under our, "Resources" our Dyno command appears to be:
+
+```
+ web /home/app/web/entrypoint.prod.sh 
+```
+
+#### Checking Entrypoint.sh
+
+We get the following error on the log:
+
+```
+2021-02-13T21:57:41.731213+00:00 heroku[web.1]: Starting process with command `/home/app/web/entrypoint.prod.sh`
+```
+So basically, entrypoint.prod.sh may not be doing anything for us, we would need it to start serving up gunicorn.
+
+CMD vs ENTRYPOINT
+
+CMD -- [Docker Engine CMD Documentation](https://docs.docker.com/engine/reference/builder/) says: 1. There can only be one CMD instruction in a Dockerfile. CMD is used to provide default arguments for the ENTRYPOINT instruction.
+
+ENTRYPOINT - []Docker Documentation on Entrypoint](https://docs.docker.com/engine/reference/builder/#entrypoint) an ENTRYPOINT allows you to configure a container that will run as an executable. So in our case, this is a Postgres entrypoint. ENTRYPOINT will be started as a subcommand of /bin/sh -c, which does not pass signals. The executable will not be the container's PID 1. Only the last ENTRYPOINT in a Dockerfile has effect, much like the CMD instruction.
+
+##### Order of Operatons
+
+Basically, it seems that Heroku expects the Web server to be up and running as a command. However Docker gives an example showing ENTRYPOINT being used prior to CMD. It's reasonable to assume that we first boot up a script which connects us to the database first, and then set up the web server second, and that this will not harm things.
+
+```
+# run entrypoint.prod.sh
+ENTRYPOINT ["/home/app/web/entrypoint.prod.sh"]
+
+# boot up and run Gunicorn
+CMD gunicorn --bind 0.0.0.0:$PORT manage:app
+```
+
+And with that, the app was successfully deployed.
+
+https://pure-everglades-62431.herokuapp.com/
 
 ## Webforms on Flask
 
@@ -1385,29 +1575,39 @@ https://dev.to/imdhruv99/flask-login-register-logout-implementation-3hep
 
 ## Conclusion
 
+Thoughts:
 
+* PORTS, defaulting to blank, different production environments.
+* Multi-stage builds, zipping files to be able to more easily pass to production
+* Uselessness of the docker-compose.yml and docker-compose.prod.yml file versus the Dockerfile and Dockerfile.prod themselves.
 
---------------
+Future Work
 
+* Getting flake8 working.
+* Getting this working: # RUN addgroup -S app && adduser -S app -G app
+* SECRET_KEY, DEBUG, and ALLOWED_HOSTS 
 
-If we want to add a management python cli within manage.py.
+Flask Bootstrap
 
-```
-$ sudo docker run -p 5001:5000 \
-    -e "FLASK_APP=project/server.py" -e "FLASK_ENV=development" \
-    flask_only python /usr/src/app/manage.py run -h 0.0.0.0
-```
+https://pythonhosted.org/Flask-Bootstrap/basic-usage.html#sample-application
 
+https://flask-menu.readthedocs.io/en/latest/
 
-So basically we specify the exact file that we want to build, and then the port it should run on to check things for sanity purposes.
+https://pythonhow.com/flask-navigation-menu/
 
-### Applying a Model to the Database
+Flask CSS 
 
-manage.py
+https://pythonhow.com/add-css-to-flask-website/
+
+NGinx
+
+Static Content
 
 
 ## References
 
+[Deploying Django to Herokku with Docker](https://testdriven.io/blog/deploying-django-to-heroku-with-docker/)
+[Deploying Flask to Heroku with Docker and Gitlab](https://testdriven.io/blog/deploying-flask-to-heroku-with-docker-and-gitlab/#docker)
 [Importing Models to Flask](https://stackoverflow.com/questions/52409894/cannot-import-app-modules-implementing-flask-cli)
 [Structuring Python Applications](https://docs.python-guide.org/writing/structure/)
 [Dockerizing Flask with Postgres, Gunicorn and Nginx](https://testdriven.io/blog/dockerizing-flask-with-postgres-gunicorn-and-nginx/)

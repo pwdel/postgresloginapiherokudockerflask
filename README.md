@@ -1544,6 +1544,9 @@ And with that, the app was successfully deployed.
 
 https://pure-everglades-62431.herokuapp.com/
 
+## Seeding Heroku Database and Making Connection
+
+
 ## Webforms on Flask
 
 https://blog.miguelgrinberg.com/post/the-flask-mega-tutorial-part-iii-web-forms
@@ -1606,10 +1609,10 @@ Static Content
 
 ## References
 
-[Deploying Django to Herokku with Docker](https://testdriven.io/blog/deploying-django-to-heroku-with-docker/)
-[Deploying Flask to Heroku with Docker and Gitlab](https://testdriven.io/blog/deploying-flask-to-heroku-with-docker-and-gitlab/#docker)
-[Importing Models to Flask](https://stackoverflow.com/questions/52409894/cannot-import-app-modules-implementing-flask-cli)
-[Structuring Python Applications](https://docs.python-guide.org/writing/structure/)
-[Dockerizing Flask with Postgres, Gunicorn and Nginx](https://testdriven.io/blog/dockerizing-flask-with-postgres-gunicorn-and-nginx/)
-[Flask Mega Tutorial: Logins](https://blog.miguelgrinberg.com/post/the-flask-mega-tutorial-part-v-user-logins)
-[Flask-Login](https://flask-login.readthedocs.io/en/latest/)
+* [Deploying Django to Herokku with Docker](https://testdriven.io/blog/deploying-django-to-heroku-with-docker/)
+* [Deploying Flask to Heroku with Docker and Gitlab](https://testdriven.io/blog/deploying-flask-to-heroku-with-docker-and-gitlab/#docker)
+* [Importing Models to Flask](https://stackoverflow.com/questions/52409894/cannot-import-app-modules-implementing-flask-cli)
+* [Structuring Python Applications](https://docs.python-guide.org/writing/structure/)
+* [Dockerizing Flask with Postgres, Gunicorn and Nginx](https://testdriven.io/blog/dockerizing-flask-with-postgres-gunicorn-and-nginx/)
+* [Flask Mega Tutorial: Logins](https://blog.miguelgrinberg.com/post/the-flask-mega-tutorial-part-v-user-logins)
+* [Flask-Login](https://flask-login.readthedocs.io/en/latest/)

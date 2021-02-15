@@ -23,6 +23,15 @@ class User(db.Model):
 
 # run app
 @app.route("/")
+def home():
+	return render_template('home.html')
+
+# route to about page
+@app.route('/about/')
+def about():
+    return render_template('about.html')
+
+
 
 def hello():
     return jsonify(answer="Hello World, Little Dude, How Are You?")

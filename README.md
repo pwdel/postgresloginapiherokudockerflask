@@ -1814,11 +1814,67 @@ After doing the above and then running manage.seed_db() we now see that there is
 
 We have now successfully connected our database to flask on Heroku.
 
+#### Running Dataclip
 
-## Webforms on Flask
+Per our discussion above:
 
-https://blog.miguelgrinberg.com/post/the-flask-mega-tutorial-part-iii-web-forms
+```
+SELECT
+  *
+FROM
+  users
+LIMIT 10;
+```
 
+Yields the result: "1 test@test123.net true" which is an expected result.
+
+We also obsverve below that there is an interesting, "schema explorer" below this, showing the datapoints and types for each column.
+
+## Adding Additional Pages to Website
+
+[Adding More Pages to the Website]()https://pythonhow.com/adding-more-pages-to-the-website/
+
+We can follow the recommended [folder structure](https://flask.palletsprojects.com/en/1.1.x/tutorial/layout/) for a flask project.
+
+Create files under /web/project/templates - about.html and home.html.
+
+
+
+Add this to the __init__.py file:
+
+```
+# run app
+@app.route("/")
+def home():
+  return render_template('templates/home.html')
+
+# route to about page
+@app.route('/about/')
+def about():
+    return render_template('templates/about.html')
+
+```
+
+
+
+
+## Login and Logout Functionality
+
+We're going to follow the [tutorial mentioned here](https://pythonbasics.org/flask-login/).
+
+### Installing the Module
+
+We find that the most recent version of [Flask-Login](https://pypi.org/project/Flask-Login/) is 0.5.0. so we add this to our requirements.txt.
+
+### Server Binding
+
+"Server Binding" or "Socket Programming" is a way of connecting two nodes in a network to communicate with each other.  [This tutorial](https://www.tutorialspoint.com/unix_sockets/what_is_socket.htm) describes what sockets are, basically it's a way for computers to talk to each other with standard Unix file descripters, or an integer associated with an open file - a text file, terminal or something else. It's much like a low-level file descripter. Commands such as read(), write() work with sockets in the same way they do with files and pipes. FTP, SMTP and POP3 make use of sockets.
+
+
+
+[Flask-Login](https://flask-login.readthedocs.io/en/latest/)
+
+https://realpython.com/using-flask-login-for-user-management-with-flask/
 
 
 ## Password Hashing
@@ -1833,14 +1889,18 @@ https://flask-login.readthedocs.io/en/latest/
 
 https://flask-user.readthedocs.io/en/latest/data_models.html
 
-## Login and Logout Functionality
 
-https://realpython.com/using-flask-login-for-user-management-with-flask/
 
 
 ## User Registration
 
 https://dev.to/imdhruv99/flask-login-register-logout-implementation-3hep
+
+
+## Webforms on Flask
+
+https://blog.miguelgrinberg.com/post/the-flask-mega-tutorial-part-iii-web-forms
+
 
 ## Pushing Everything to Production
 
@@ -1883,6 +1943,7 @@ Static Content
 
 ## References
 
+* [Flask Login Python Basics](https://pythonbasics.org/flask-login/).
 * [Setting up Postgres, SQLAlchemy, and Alembic](https://realpython.com/flask-by-example-part-2-postgres-sqlalchemy-and-alembic/)
 * [Deploying Django to Herokku with Docker](https://testdriven.io/blog/deploying-django-to-heroku-with-docker/)
 * [Deploying Flask to Heroku with Docker and Gitlab](https://testdriven.io/blog/deploying-flask-to-heroku-with-docker-and-gitlab/#docker)

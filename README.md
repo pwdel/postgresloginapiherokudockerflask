@@ -1803,6 +1803,17 @@ Substituting the username and database name for the names found in our postgres 
 
 When we try to run this command, we see that we get an output, "hey this is a test message, thanks for reading!"  We also note that we had mistakenly wrote two functions with the same name for that database initialize function!  So, we have to go back and update the code on our local and redeploy to Heroku.
 
+Once again, to redeploy to Heroku after chaging the code:
+
+1. sudo docker-compose -f docker-compose.prod.yml up -d --build
+2. sudo docker tag hello_flask registry.heroku.com/pure-everglades-62431/web
+3. sudo docker push registry.heroku.com/pure-everglades-62431/web
+4. heroku container:release web
+
+After doing the above and then running manage.seed_db() we now see that there is one row in the postgres database.
+
+We have now successfully connected our database to flask on Heroku.
+
 
 ## Webforms on Flask
 

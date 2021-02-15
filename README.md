@@ -1621,6 +1621,7 @@ Static Content
 
 ## References
 
+* [Setting up Postgres, SQLAlchemy, and Alembic](https://realpython.com/flask-by-example-part-2-postgres-sqlalchemy-and-alembic/)
 * [Deploying Django to Herokku with Docker](https://testdriven.io/blog/deploying-django-to-heroku-with-docker/)
 * [Deploying Flask to Heroku with Docker and Gitlab](https://testdriven.io/blog/deploying-flask-to-heroku-with-docker-and-gitlab/#docker)
 * [Importing Models to Flask](https://stackoverflow.com/questions/52409894/cannot-import-app-modules-implementing-flask-cli)

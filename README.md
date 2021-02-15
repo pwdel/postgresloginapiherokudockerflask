@@ -1780,7 +1780,28 @@ Which basically seems to say that the database service has started.
 
 Of course, we still don't have any data seeded and no connections made, so we need to log back in, run the, "create_db" and "seed_db" functions to get the dtabase going and seeded.
 
+We once again, enter into the heroku bash via, "bash" then enter into the python3 console.
 
+``` bash
+>>> import manage as manage
+>>> manage.create_db() 
+```
+This time, we don't get any errors.
+
+Next, we can inspect the postgres database structure within the pash via:
+
+```
+$ db psql --username=hello_flask --dbname=hello_flask_dev 
+```
+
+Substituting the username and database name for the names found in our postgres configuration. However, when we try to enter in within, "run" Heroku outputs, "command not found."  That being said, if we look at the database console within the Heroku add-on settings, we can see that there is indeed one table set up.
+
+``` bash
+>>> import manage as manage
+>>> manage.seed_db() 
+```
+
+When we try to run this command, we see that we get an output, "hey this is a test message, thanks for reading!"  We also note that we had mistakenly wrote two functions with the same name for that database initialize function!  So, we have to go back and update the code on our local and redeploy to Heroku.
 
 
 ## Webforms on Flask
@@ -1830,6 +1851,7 @@ Future Work
 * Getting flake8 working.
 * Getting this working: # RUN addgroup -S app && adduser -S app -G app
 * SECRET_KEY, DEBUG, and ALLOWED_HOSTS 
+* Redis for database concurrent connections, if in fact we get a lot of activity on the app.
 
 Flask Bootstrap
 

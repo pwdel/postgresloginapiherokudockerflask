@@ -19,7 +19,7 @@ def seed_db():
 
 
 @cli.command("test_message")
-def seed_db():
+def test_message():
 	click.echo('hey this is a test message, thanks for reading!')
 
 if __name__ == "__main__":

@@ -1544,6 +1544,15 @@ And with that, the app was successfully deployed.
 
 https://pure-everglades-62431.herokuapp.com/
 
+Interestingly, on the Python command line, we can do:
+
+```
+>>> os.listdir("/home/app/web")
+['.wh..wh..opq', 'project', '__pycache__', 'manage.py', 'requirements.txt', 'Dockerfile', 'entrypoint.prod.sh', 'Dockerfile.prod', 'entrypoint.sh']
+```
+
+That dockerfile
+
 ## Seeding Heroku Database and Making Connection
 
 
@@ -1583,6 +1592,9 @@ Thoughts:
 * PORTS, defaulting to blank, different production environments.
 * Multi-stage builds, zipping files to be able to more easily pass to production
 * Uselessness of the docker-compose.yml and docker-compose.prod.yml file versus the Dockerfile and Dockerfile.prod themselves.
+* Adaptable Dockerfile for both Production and Dev, depending upon command sent...rather than different dockerfiles?  Or is it just the YML file?
+* What do the YML files really do anyway?  They don't seem to have much control over the situation.
+* How do we prevent dockerfiles from being copied over into the production environment?  Does that matter?
 
 Future Work
 

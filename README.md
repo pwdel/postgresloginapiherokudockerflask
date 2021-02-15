@@ -1569,9 +1569,218 @@ We get,
 
 > ERROR:  relation "users" does not exist LINE 4: users
 
-Basically because we have not set up nor seeded the database.
+Basically because we have not set up nor seeded the database. 
 
 ## Setup  and Seeding Heroku Database and Making Connection
+
+So what is it that we really want to do?
+
+We want to be able to run the equivalent of two different functions, on Heroku:
+
+1. docker-compose exec web python manage.py create_db
+2. sudo docker-compose exec web python manage.py seed_db
+
+So basically, command line create_db and seed_db.
+
+Hypothetically, we should be able to run command line or flask cli through the Heroku CLI or through the Heroku Run function.  What we really need is the Heroku Run function documentation to understand what this really is. Is this the equivalent of the Heroku CLI?
+
+[This article talks about, "User Heroku run commands from Dashboard"](https://devcenter.heroku.com/changelog-items/1137) with even more information linked to [here](https://devcenter.heroku.com/articles/heroku-dashboard). This document in turn refers to the [Heroku CLI](https://devcenter.heroku.com/articles/heroku-cli) as well as the [Platform API](https://devcenter.heroku.com/articles/platform-api-reference). 
+
+Interestingly, at the bottom of the Dashboard, there is a link to the command, "bash."  If we type, "bash" into Heroku run, it pulls is into what appears to be literally the server prompt:
+
+```
+bash-5.0$
+
+```
+Upon running command, "ls" we get a list of all of the standard folders that we would have seen at the Docker root@docker_id system information.
+
+So from here we might be able to try to run our database inquiry, or rather log into SQL to see if anything happens.
+
+Whereas previously, logging in through docker we had used the command:
+
+```
+sudo docker-compose exec db psql --username=hello_flask --dbname=hello_flask_dev                                        
+```
+
+Now that we are actually in the server, already logged in we may try th regular psql command:
+
+```
+psql --username=hello_flask --dbname=hello_flask_dev
+```
+When we run this, we see, "psql: command not found"
+
+We can however, run the Python command line. So why not go into the folder where our manage.py file is stored and then run the functions in question?
+
+How do we run class methods from the regular command line?  
+
+1. Create an instance of the class with "test_intance = test(filepath)"
+2. Call the Method test_instance.method()
+
+Note, this is different than the Python command line. We were unable to do this from the regular command line, so using the python runtime...
+
+```
+So we we enter into Python with python3 then:
+
+>>> import manage as manage
+>>> manage.create_db() 
+
+```
+So after doing this, we got the message:
+
+Error: Could not locate a Flask application. You did not provide the "FLASK_APP" environment variable, and a "wsgi.py" or "app.py" module was not found in the current directory.
+
+We saw this message before above. Trying to inspect the /proc/1/environ file, we were unable to access this. Doing "echo $ENV_VAR" displays no environmental variables. So presumably, none of our environmental variables have been set up yet within Heroku. We know from previous experience that typically it seems that environmental variables need to be set up manually within Heroku.
+
+Going into our "Settings" within the Heroku dashboard we see there is only one environmental variable set, the DATABASE_URL variable.
+
+What are all of the environmental variables that we need to set within Heroku?
+
+```
+From the /proc/1 on our local Production Docker...
+
+* HOSTNAME
+* PYTHON_PIP_VERSION=21.0.1
+* HOME=/home/app
+* GPG_KEY=
+* PYTHON_GET_PIP_URL=https://github.com/pypa/get-pip/raw/4be3fe44ad9dedc028629ed1497052d65d281b8e/get-pip.py
+* TERM=xterm
+* APP_HOME=/home/app/webPATH=/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+* LANG=C.UTF-8
+* PYTHON_VERSION=3.9.1
+* PWD=/home/app/web
+* PYTHON_GET_PIP_SHA256=
+
+From our Dockerfile.prod
+
+* PYTHONDONTWRITEBYTECODE 1
+* PYTHONUNBUFFERED 1
+
+* FLASK_APP project/__init__.py
+* FLASK_ENV production
+* HOME=/home/app
+* APP_HOME=/home/app/web
+
+From Our docker-compose.prod.yml
+
+* FLASK_APP=project/__init__.py
+* FLASK_ENV=production
+* SQL_HOST=db
+* SQL_PORT=5432
+* DATABASE=postgres
+* POSTGRES_USER=hello_flask
+* POSTGRES_PASSWORD=hello_flask
+* POSTGRES_DB=hello_flask_prod
+
+```
+
+* Note that HOSTNAME is from Docker, it is not needed.
+* Note that GPG_KEY above has been taken out, since it is a secure thing we don't want to share on Github.
+* PYTHON_GET_PIP_SHA256 has also been taken out, since it is a secure thing.
+* Note that our DATABASE_URL is going to be different and assigned by Heroku.
+* Also note that FLASK_APP, FLASK_ENV should be the same, because the .prod.yml file simply wasn't populating it on our local machine.
+* Also note POSTGRES_USER and POSTGRES_PASSWORD should be changed, these are defaults because we don't want to communicate those on Github.
+
+Once we set all of these variables, then will everything work?
+
+Hypothetically as soon as we set the "DATABASE" variable, then our entrypoint.prod.sh file should be running as a PID process.
+
+```
+if [ "$DATABASE" = "postgres" ]
+then
+    echo "Waiting for postgres..."
+
+    while ! nc -z $SQL_HOST $SQL_PORT; do
+      sleep 0.1
+    done
+
+    echo "PostgreSQL started"
+fi
+```
+
+Basically, if we have the DATABASE variable set, then the app should try to connect to SQL_HOST at SQL_PORT.  We can look at the logs for more clues.
+
+
+
+```
+2021-02-15T16:55:58.132927+00:00 app[web.1]: db: forward host lookup failed: Unknown host
+
+2021-02-15T16:55:58.219708+00:00 heroku[web.1]: Error R10 (Boot timeout) -> Web process failed to bind to $PORT within 60 seconds of launch
+
+2021-02-15T16:55:58.237292+00:00 app[web.1]: db: forward host lookup failed: Unknown host
+
+2021-02-15T16:55:58.304427+00:00 heroku[web.1]: Stopping process with SIGKILL
+
+2021-02-15T16:55:58.456765+00:00 heroku[web.1]: Process exited with status 137
+
+2021-02-15T16:55:58.515476+00:00 heroku[web.1]: State changed from starting to crashed
+```
+
+So now, we get an [R10 error rather than an H10 error](https://devcenter.heroku.com/articles/error-codes#r10-boot-timeout).  This is progress. So if the name "db" doesn't work...then what should we use?
+
+### Setting Up Heroku Postgres Variables
+
+1. Under, "Configure Add-ons" we see that there is a Postgres instantiaton.  Clicking on this leads us to: "Datastores > database_name"
+2. From here, we see we have the following credentials for manual connections to the database. 
+
+```
+Host
+Database
+User
+Port
+Password
+URI
+Heroku CLI
+```
+
+From these settings, we can setup the proper environmental variables within our Heroku settings.
+
+```
+Host:SQL_HOST
+Database: -- Might not match to our code.
+User:POSTGRES_USER
+Port:SQL_PORT
+Password: POSTGRES_PASSWORD
+URL:DATABASE_URL
+Heroku CLI - Not needed.
+```
+After we set the above, we then get:
+
+```
+021-02-15T17:11:37.408243+00:00 heroku[web.1]: Restarting
+
+2021-02-15T17:11:37.415828+00:00 heroku[web.1]: State changed from up to starting
+
+2021-02-15T17:11:36.789311+00:00 app[api]: Release v32 created by user iotsoftwr3000@gmail.com
+
+2021-02-15T17:11:36.789311+00:00 app[api]: Set POSTGRES_PASSWORD config vars by user iotsoftwr3000@gmail.com
+
+2021-02-15T17:11:38.907408+00:00 heroku[web.1]: Stopping all processes with SIGTERM
+
+2021-02-15T17:11:38.985496+00:00 app[web.1]: [2021-02-15 17:11:38 +0000] [6] [INFO] Worker exiting (pid: 6)
+
+2021-02-15T17:11:39.072782+00:00 heroku[web.1]: Process exited with status 143
+
+2021-02-15T17:11:42.801032+00:00 heroku[web.1]: Starting process with command `/bin/sh -c gunicorn\ --bind\ 0.0.0.0:\8122\ manage:app`
+
+2021-02-15T17:11:45.861684+00:00 app[web.1]: Waiting for postgres...
+
+2021-02-15T17:11:45.876946+00:00 app[web.1]: PostgreSQL started
+
+2021-02-15T17:11:46.380386+00:00 app[web.1]: [2021-02-15 17:11:46 +0000] [5] [INFO] Starting gunicorn 20.0.4
+
+2021-02-15T17:11:46.381216+00:00 app[web.1]: [2021-02-15 17:11:46 +0000] [5] [INFO] Listening at: http://0.0.0.0:8122 (5)
+
+2021-02-15T17:11:46.381385+00:00 app[web.1]: [2021-02-15 17:11:46 +0000] [5] [INFO] Using worker: sync
+
+2021-02-15T17:11:46.397354+00:00 app[web.1]: [2021-02-15 17:11:46 +0000] [6] [INFO] Booting worker with pid: 6
+
+2021-02-15T17:11:47.352601+00:00 heroku[web.1]: State changed from starting to up
+```
+Which basically seems to say that the database service has started.
+
+Of course, we still don't have any data seeded and no connections made, so we need to log back in, run the, "create_db" and "seed_db" functions to get the dtabase going and seeded.
+
+
 
 
 ## Webforms on Flask
@@ -1613,6 +1822,8 @@ Thoughts:
 * Adaptable Dockerfile for both Production and Dev, depending upon command sent...rather than different dockerfiles?  Or is it just the YML file?
 * What do the YML files really do anyway?  They don't seem to have much control over the situation.
 * How do we prevent dockerfiles from being copied over into the production environment?  Does that matter?
+* Do environmental variables always need to be set manually within Heroku?  If so why?  Is this more secure?
+* What is the GPG key?
 
 Future Work
 

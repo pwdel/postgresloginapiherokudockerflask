@@ -1551,9 +1551,27 @@ Interestingly, on the Python command line, we can do:
 ['.wh..wh..opq', 'project', '__pycache__', 'manage.py', 'requirements.txt', 'Dockerfile', 'entrypoint.prod.sh', 'Dockerfile.prod', 'entrypoint.sh']
 ```
 
-That dockerfile
+However, this dose not allow us to look at the database and make queries.
 
-## Seeding Heroku Database and Making Connection
+[Heroku has some Documentation](https://devcenter.heroku.com/articles/dataclips) on how to create, "clips" of data from SQL queries with a tool that they prvodie called [Dataclips](https://data.heroku.com/dataclips/create).
+
+Of course when we run this, using our SQL Query that we had established above,
+
+```
+SELECT
+  *
+FROM
+  users
+LIMIT 10;
+```
+
+We get, 
+
+> ERROR:  relation "users" does not exist LINE 4: users
+
+Basically because we have not set up nor seeded the database.
+
+## Setup  and Seeding Heroku Database and Making Connection
 
 
 ## Webforms on Flask

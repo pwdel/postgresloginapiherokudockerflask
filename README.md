@@ -1832,7 +1832,7 @@ We also obsverve below that there is an interesting, "schema explorer" below thi
 
 ## Adding Additional Pages to Website
 
-[Adding More Pages to the Website]()https://pythonhow.com/adding-more-pages-to-the-website/
+[Adding More Pages to the Website](https://pythonhow.com/adding-more-pages-to-the-website/)
 
 We can follow the recommended [folder structure](https://flask.palletsprojects.com/en/1.1.x/tutorial/layout/) for a flask project.
 
@@ -1855,7 +1855,30 @@ def about():
 
 ```
 
+Re-run Docker with, "sudo docker-compose -f docker-compose.yml up -d --build" using the development version, so that we can view it locally.
 
+When we do this, we get an error, "render_template" is not defined. Basically, we need a render_template function. Evidently [render_template is part of Flask](https://flask.palletsprojects.com/en/1.1.x/api/#flask.render_template). Within our imports at the top of the page we need to do, "from flask import Flask, jsonify, render_template".
+
+After we import this, we then get an error, "TemplateNotFound(template)" for /templates.home.  After playing around with the folder directories and ways of sorting out how this works, we find that we are able to just use the existing folder structure, and simply call out, "home.html" under, "render_template" in order to work, e.g.:
+
+```
+# run app
+@app.route("/")
+def home():
+  return render_template('home.html')
+```
+
+Now that we have these pages added, we might as well use a Bootstrap stylesheet.  We can download these at [Bootstrap](https://getbootstrap.com/docs/3.3/getting-started/) and add them into our static folder.
+
+However we also found a tutorial which shows how to [add Bootstrap via a jquery script which draws off of bootstrapcdn](https://www.techwithtim.net/tutorials/flask/adding-bootstrap/).  We are deciding to take this route because it's faster.
+
+From this same tutorial, we can also add a sidebar on the home page. So basically, we add a sidebar by adding additional code to the base page, and then updating our various other pages where we want that nav bar to show up, extending the base page.
+
+Note that now that we have the code up and running, there is no need to re-build things from a docker perspective, Docker basically reads from the code that we write.
+
+* As we move along, it is necessary to add some at least extremely basic styling. So we use the documentation about bootstrap from [here](https://getbootstrap.com/docs/3.3/getting-started/). and create some div's that actually create some padding and spacing rather than just having the navbar and text jammed up against the edge of the browser.
+
+Once we create some basic pages, About, Home, Pricing, we are now left with, "Login."
 
 
 ## Login and Logout Functionality
@@ -1916,6 +1939,7 @@ Thoughts:
 * How do we prevent dockerfiles from being copied over into the production environment?  Does that matter?
 * Do environmental variables always need to be set manually within Heroku?  If so why?  Is this more secure?
 * What is the GPG key?
+* When do we need to rebuild Docker and when can we hold off? Is it only for static pages or is it for any functions as well?
 
 Future Work
 
@@ -1923,8 +1947,9 @@ Future Work
 * Getting this working: # RUN addgroup -S app && adduser -S app -G app
 * SECRET_KEY, DEBUG, and ALLOWED_HOSTS 
 * Redis for database concurrent connections, if in fact we get a lot of activity on the app.
+* Installing Bootstrap locally, rather than grabbing from 
 
-Flask Bootstrap
+Flask Bootstrap - serve from a CDN. https://pythonhosted.org/Flask-Bootstrap/
 
 https://pythonhosted.org/Flask-Bootstrap/basic-usage.html#sample-application
 

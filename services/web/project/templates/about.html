@@ -1,9 +1,14 @@
 <!DOCTYPE html>
 <html>
   <body>
-   <div class="about">
-     <h1>About me</h1>
-     <p>This is the about page.</p>
-   </div>
+	{% extends "base.html" %}
+	{% block title %}Home Page{% endblock %}
+	{% block content %}
+	<h2>About</h2>
+	<p>This is a test about page. Enjoy!</p>
+
+	{% endblock %}
+
+
   </body>
 </html>

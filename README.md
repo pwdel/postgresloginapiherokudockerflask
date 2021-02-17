@@ -2095,41 +2095,69 @@ def dashboard():
 
 Basically, this renders a template which gives a login message to the user on the main page, '/'. There is no static page that is used, but rather it writse it out on teh login page.
 
+There is also a logout route.
+
+Since we are dealing with route.by, we also must take note that the tutorial overall does discuss different forms of routing within the [Blueprint tutorial](https://hackersandslackers.com/flask-blueprints/).  This also includes the definition of a home() function.
+
+This harkens back to our __init__.py function, which has the line:
+
+```
+        # Register Blueprints
+        app.register_blueprint(home.home_bp)
+```
+
+This of course also entails importing a route from our "home" or rather, "project" folder.  We put this at the top of __init__.py
+
+```
+from .project import routes
+```
 
 #### auth.py
 
-Auth essentially creates our login roles, as shown here:
+[Per this tutorial here](https://hackersandslackers.com/flask-assets/), we have two sections of the auth.py file:
 
-```
-"""Routes for user authentication."""
-from flask import Blueprint
+* @auth_bp.route('/signup', methods=['GET', 'POST'])
+* @auth_bp.route('/login', methods=['GET', 'POST'])
 
+Basically, a signup and a login.
 
-# Blueprint Configuration
-auth_bp = Blueprint(
-    'auth_bp', __name__,
-    template_folder='templates',
-    static_folder='static'
-)
+##### Signup
 
+1. We start out with a blueprint.
+2. Signing up - the signup route handles GET requests when users land on the page for the first time, and POST when they attempt to submit the signup form.
+3. The route checks all cases of a user attempting to sign in by checking the HTTP method via flask's request object. If the user is arriving for the first time, the route serves the signup.jinja2 template via [render_template()](https://flask.palletsprojects.com/en/1.1.x/api/#flask.render_template).
+4. So first auth.py validates if the user filled out the form correctly with the [built in flask-WFT method form.validate_on_submit()](https://flask-wtf.readthedocs.io/en/stable/quickstart.html#validating-forms). This will only trigger if the incoming request is a POST containing form information.
+5. We verify that the user isn't an existing user.
+6. Create a user via the User model.
+7. Add user to database.
+8. login_user() is a method from the [flask_login package](https://flask-login.readthedocs.io/en/latest/#flask_login.login_user)
+9. Finally everything is redirected via "return redirect(url_for()".
 
-@auth_bp.route('/login', methods=['GET', 'POST'])
-def login():
-    # Login route logic goes here
+##### Login
 
+1. Uses pretty much the same logic.
+2. Does user.check_password() - which appears to come from the werkzeug library, however it appears to possibly be: [check_password_hash](https://werkzeug.palletsprojects.com/en/1.0.x/utils/?highlight=check_password#werkzeug.security.check_password_hash) which is different than check_password. set_password() and check_password() are both from the werkzeug library according to our tutorial.
+3. Redirect.
 
-@auth_bp.route('/signup', methods=['GET', 'POST'])
-def signup():
-    # Signup logic goes here
-```
+###### Login Helpers
 
-We have a route for login and a route for signup.
+* user_loader checks to make sure user is still logged in.
+* unauthorized handler sends unauthorized users away.
 
 #### assets.py
 
+The assets are basically the CSS, 
+
+[Per this tutorial here](https://hackersandslackers.com/flask-assets/), we have two sections of the 
+
+###### Jinja2 Templates
 
 
 #### forms.py
+
+signup.jinja2
+
+login.jinja2
 
 
 

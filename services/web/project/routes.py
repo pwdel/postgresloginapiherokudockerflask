@@ -1,15 +1,29 @@
 """Logged-in page routes."""
 from flask import Blueprint, render_template, redirect, url_for
 from flask_login import current_user, login_required
+from flask_login import logout_user
+
 
 
 # Blueprint Configuration
+# we define __name__ as the main blueprint, and the templates/static folder.
 main_bp = Blueprint(
     'main_bp', __name__,
     template_folder='templates',
     static_folder='static'
 )
 
+@home_bp.route('/', methods=['GET'])
+def home():
+    """Homepage."""
+    products = fetch_products(app)
+    return render_template(
+        'index.jinja2',
+        title='Flask Blueprint Demo',
+        subtitle='Demonstration of Flask blueprints in action.',
+        template='home-template',
+        products=products
+    )
 
 @main_bp.route('/', methods=['GET'])
 @login_required
@@ -22,3 +36,11 @@ def dashboard():
         current_user=current_user,
         body="You are now logged in!"
     )
+
+
+@main_bp.route("/logout")
+@login_required
+def logout():
+    """User log-out logic."""
+    logout_user()
+    return redirect(url_for('auth_bp.login'))

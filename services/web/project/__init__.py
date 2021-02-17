@@ -3,6 +3,10 @@ from flask_sqlalchemy import SQLAlchemy
 import os
 # import flask LoginManager
 from flask_login import LoginManager
+# import flask_assets
+from flask_assets import Environment, Bundle
+# import compile assets from assets.py
+from .assets import compile_static_assets
 
 port = int(os.environ.get("PORT", 5000))
 
@@ -18,6 +22,7 @@ def create_app():
     # pull the config file, per flask documentation
     # Application configuration
     app.config.from_object("project.config.Config")
+
     # initialize database plugin
     db.init_app(app)
     # initialize login manager plugin
@@ -25,31 +30,24 @@ def create_app():
     with app.app_context():
         from . import routes
         from . import auth
-        from .assets import compile_assets
+        from .assets import compile_static_assets
 
         # Register Blueprints
         app.register_blueprint(routes.main_bp)
         app.register_blueprint(auth.auth_bp)
 
+        # import model class
+        from . import models
+
         # Create Database Models
         db.create_all()
 
         # Compile static assets
-        if app.config['FLASK_ENV'] == 'development':
-            compile_assets(app)
+        compile_static_assets(app)
 
     return app
 
 app = create_app()
-
-# insert database model class
-class User(db.Model):
-    __tablename__ = "users"
-    id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(128), unique=True, nullable=False)
-    active = db.Column(db.Boolean(), default=True, nullable=False)
-    def __init__(self, email):
-        self.email = email
 
 # run app
 @app.route("/")

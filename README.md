@@ -2068,8 +2068,8 @@ This protects parts of our app from unauthorized users.  Here's what we put in r
 
 1. We have to define two blueprints - main_bp and home_bp. Blueprints help standardize how everything is laid out in terms of routes and templates, basically our folder structure.
 2. We then use .route to return templates from index.jinja2, dashboard.jinja2 and also a logout.
-3. 
 
+Given this, we have to make sure we have these templates available in our /templates folders.
 
 
 Basically, this renders a template which gives a login message to the user on the main page, '/'. There is no static page that is used, but rather it writse it out on teh login page.
@@ -2130,7 +2130,6 @@ The assets are basically the CSS,
 [Per this tutorial here](https://hackersandslackers.com/flask-assets/), we have two sections of the 
 
 ###### Jinja2 Templates
-
 
 
 
@@ -2221,72 +2220,257 @@ def load_user(user_id):
     return User.objects(id=user_id).first()
 ```
 
-#### Landing Page Rights and Finalization
+## Debugging
 
-The following limits the increase, modify, and delete HTTP operations to be user-enabled.
+### login_manager
 
-```
-def query_records():
-    name = request.args.get('name')
-    user = User.objects(name=name).first()
-    if not user:
-        return jsonify({'error': 'data not found'})
-    else:
-        return jsonify(user.to_json())
-@app.route('/', methods=['PUT'])
-@login_required
+After adding auth.py, config.py, routes.py and models.py we have an error saying that "NameError: name 'login_manager' is not defined" on the auth.py page.  This was because we had to add, "from . import login_manager" at the top of auth.py, along with other imports.
 
-def update_record():
-    record = json.loads(request.data)
-    user = User.objects(name=record['name']).first()
-    if not user:
-        return jsonify({'error': 'data not found'})
-    else:
-        user.update(email=record['email'],
-                    password=record['password'])
-    return jsonify(user.to_json())
-@app.route('/', methods=['DELETE'])
-@login_required
+### ModuleNotFoundError: No module named 'flask_wtf'
 
-def delete_record():
-    record = json.loads(request.data)
-    user = User.objects(name=record['name']).first()
-    if not user:
-        return jsonify({'error': 'data not found'})
-    else:
-        user.delete()
-    return jsonify(user.to_json())
+After adding auth.py, config.py, routes.py and models.py we have an error saying that:
+
+File "/usr/src/app/project/forms.py", line 2, in <module>
+flask  |     from flask_wtf import FlaskForm
+flask  | ModuleNotFoundError: No module named 'flask_wtf'
+
+This was because we needed to add "Flask-WTF==0.14.3", the most recent version to the requirements.txt form.
 
 ```
+from flask_wtf import FlaskForm
+```
+### Exception: Install 'email_validator' for email validation support.
 
-#### Logout
+email_validator is actually [its own module](https://pypi.org/project/email-validator/), so we need to install this on the requirements.txt file.
 
 ```
-# Logout Logic
+from wtforms import email_validator
+```
+### ModuleNotFoundError: No module named 'flask_assets'
 
-from flask.ext.login import logout_user
-@app.route('/logout', methods=['POST'])
-def logout():
-    logout_user()
-    return jsonify(**{'result': 200,
-                      'data': {'message': 'logout success'}})
+[flask_assets is its own module](https://pypi.org/project/Flask-Assets/) which we have to install on requirements.txt and import.
 
-# Checking if logged in in the first place
+under __init__.py and assets.py
 
-from flask.ext.login import current_user
-@app.route('/user_info', methods=['POST'])
-def user_info():
-    if current_user.is_authenticated:
-        resp = {"result": 200,
-                "data": current_user.to_json()}
-    else:                                                                                                                    
-        resp = {"result": 401,
-                "data": {"message": "user no login"}}
-    return jsonify(**resp)
+```
+from flask_assets import Environment, Bundle
 ```
 
+The tutorial we are following refers to the [folder structure](https://hackersandslackers.com/flask-assets/) and potentially needing to rename the folders to align with this module.
 
-https://realpython.com/using-flask-login-for-user-management-with-flask/
+### ImportError: cannot import name 'compile_assets' from 'project.assets' (/usr/src/app/project/assets.py)
+
+This appears to have meant to import the functon compile_static_assets.
+
+from .assets import compile_static_assets
+
+There is and was no compile_assets function.
+
+### 
+
+Within __init__.py, after starting up, the function db.create_all() tries to run, and theere is no database:
+
+flask  |   File "/usr/src/app/project/__init__.py", line 39, in create_app
+flask  |     db.create_all()
+
+Through the errors we see:
+
+flask  | sqlalchemy.exc.OperationalError: (psycopg2.OperationalError) FATAL:  database "hello_flask_dev" does not exist
+
+flask  | (Background on this error at: http://sqlalche.me/e/13/e3q8)
+
+[On the SQLAlchemy docs](https://docs.sqlalchemy.org/en/13/errors.html#error-e3q8) they mention:
+
+> The OperationalError is the most common (but not the only) error class used by drivers in the context of the database connection being dropped, or not being able to connect to the database. For tips on how to deal with this, see the section Dealing with Disconnects.
+
+Basically, we don't know what the function "create_all()" is trying to do with the database, or if it even does anything at this point.
+
+Looking at the [documentation on create_all for SQLAlchemy](https://flask-sqlalchemy.palletsprojects.com/en/2.x/api/#flask_sqlalchemy.SQLAlchemy.create_all), we see that this is simply a built-in function desigend to create all tables.
+
+We had used this previously under, "manage.py" as follows:
+
+> @cli.command("create_db")
+> def create_db():
+>    db.drop_all()
+>    db.create_all()
+>    db.session.commit()
+
+However, it may not be that we need to expand upon this definition, it may be that our database "hello_flask_dev" may literally no longer exist anymore.
+
+We know from experience that the docker-compose.yml does not tend to do well with environmental variables.  Currently it is our docker-compose.yml file which sets the database environment.
+
+```
+  db:
+    image: postgres:13-alpine
+    container_name: db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      - POSTGRES_USER=hello_flask
+      - POSTGRES_PASSWORD=hello_flask
+      - POSTGRES_DB=hello_flask_dev
+```
+However we may need to move these environmental variables to the Dockerfile itself.  When we log in as follows, we get a, "hello_flask_dev" does not exist message.
+
+
+```
+sudo docker-compose exec db psql --username=hello_flask --dbname=hello_flask_dev
+```
+Adding the following to the Dockerfile:
+
+```
+      - POSTGRES_USER=hello_flask
+      - POSTGRES_PASSWORD=hello_flask
+      - POSTGRES_DB=hello_flask_dev
+```
+After doing this, we still get a database "hello_flask_dev" does not exist error.
+
+Could it be the order of operations on the __init__.py file?
+
+Curiously, we see that we get the following upon initiation of the db:
+
+```
+db     | 2021-02-17 12:01:30.806 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+db     | 2021-02-17 12:01:31.399 UTC [20] LOG:  database system was shut down at 2021-02-17 12:01:24 UTC
+```
+
+As well as:
+
+```
+db     | 2021-02-17 12:01:31.577 UTC [1] LOG:  database system is ready to accept connections
+db     | 2021-02-17 19:20:02.579 UTC [485] FATAL:  database "hello_flask_dev" does not exist
+db     | 2021-02-17 19:20:03.384 UTC [486] FATAL:  database "hello_flask_dev" does not exist
+db     | 2021-02-17 19:43:53.883 UTC [517] FATAL:  database "hello_flask" does not exist
+db     | 2021-02-17 19:44:30.052 UTC [523] FATAL:  database "hello_flask" does not exist
+db     | 2021-02-17 19:44:32.238 UTC [530] FATAL:  database "hello_flask_dev" does not exist
+db     | 2021-02-17 19:48:51.822 UTC [536] FATAL:  database "hello_flask_dev" does not exist
+db     | 2021-02-17 19:48:52.622 UTC [537] FATAL:  database "hello_flask_dev" does not exist
+
+```
+Which seems to imply that the database is switching back and fourth between names.
+
+There is a comment on the tutorial:
+
+> Thanks for the great tutorials! Following your app structure, I was getting the error: "sqlalchemy.exc.operationalerror (sqlite3.operationalerror) no such table" I solved it by importing the model classes just before "db.createall()" in myinit.py, inside "app.appcontext()" from .models import Model1, Model2 db.create_all() is this the proper solution, or would you recommend another way around that?
+
+So basically, we may need to import the model classes before creating the database.  Which, this makes sense because previously we had created our simple model class as follows, before accessing the create_db through the flask cli on manage.py.
+
+```
+
+# insert database model class
+class User(db.Model):
+    __tablename__ = "users"
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(128), unique=True, nullable=False)
+    active = db.Column(db.Boolean(), default=True, nullable=False)
+    def __init__(self, email):
+        self.email = email
+
+```
+
+Hence, we insert:
+
+```
+        # import model class
+        from . import models
+
+        # Create Database Models
+        db.create_all()
+```
+
+Of course, this does not work, and we get the same error. It could be that we are trying to connect to the database twice, so we may need to remove any other database code that we had created previously to see if anything happens. We may also need to delete any currently existing database within Docker to make sure it restarts properly.
+
+We remove:
+
+```
+# insert database model class
+class User(db.Model):
+    __tablename__ = "users"
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(128), unique=True, nullable=False)
+    active = db.Column(db.Boolean(), default=True, nullable=False)
+    def __init__(self, email):
+        self.email = email
+```
+
+...which did nothing, but it's OK because we needed a new user model anyway from our new file.
+
+Finally we found from looking at our previous tutorial, that if you get the following error;
+
+"sqlalchemy.exc.OperationalError: (psycopg2.OperationalError)
+FATAL:  database "hello_flask_dev" does not exist"
+
+Then you just need to run:
+
+```
+docker-compose down -v
+```
+...to remove the volumes along with the containers. Then, re-build the images, run the containers, and apply the migrations. Basically, this gets rid of all of our previous baggage so we can start fresh.
+
+### KeyError: 'FLASK_ENV'
+
+Here we are simply getting a key error referecing our config.py file.
+
+```
+flask  |   File "/usr/src/app/project/__init__.py", line 45, in create_app
+flask  |     if app.config['FLASK_ENV'] == 'development':
+
+```
+
+We had not set our FLASK_ENV within the configuration file, we had set it within the Dockerfile, so we can do a quick hack to see if we can clear it by setting FLASK_ENV to development in config.py.
+
+This does not work, however thinking about things further - really our app configuraton happens as a function of the environment, and we don't want to hard code anything.
+
+It seems that we simply would like to go forward with, "compile_static_assets" in any case - however what does this do, really?
+
+When we delete the conditional, everything with the database boots up and appears to work flawlessly.
+
+Can we inspect the database?
+
+We can log in via the standard method, and inspect the database with SQL commands \l, \dt and sofourth.
+
+We did this and found a description of the database exactly as we had expected:
+
+```
+                                         Table "public.flasklogin-users"                                                                                                                    
+   Column   |            Type             | Collation | Nullable |                    Default                                                                                               
+------------+-----------------------------+-----------+----------+------------------------------------------------                                                                          
+ id         | integer                     |           | not null | nextval('"flasklogin-users_id_seq"'::regclass)                                                                           
+ name       | character varying(100)      |           | not null |                                                                                                                          
+ email      | character varying(40)       |           | not null |                                                                                                                          
+ password   | character varying(200)      |           | not null |                                                                                                                          
+ website    | character varying(60)       |           |          |                                                                                                                          
+ created_on | timestamp without time zone |           |          |                                                                                                                          
+ last_login | timestamp without time zone |           |          |                                                                                                                          
+Indexes:  
+```
+
+### AttributeError: 'Flask' object has no attribute 'register'
+
+Next, we are lacking some assets within our file, assets.py.
+
+```
+flask  |   File "/usr/src/app/project/assets.py", line 32, in compile_static_assets
+flask  |     assets.register('main_styles', main_style_bundle)
+flask  | AttributeError: 'Flask' object has no attribute 'register'
+```
+This is a part of, "assets" and there is a [whole seperate tutorial on flask-assets](https://hackersandslackers.com/flask-assets/).
+
+#### Install Flask Assets
+
+We talked about this above, and have installed it in requirements.txt.
+
+However we also need to install:
+
+* lesscpy
+* cssmin
+* jsmin
+
+Within our config.py file, we add:
+
+LESS_BIN = '/usr/local/bin/lessc'
+ASSETS_DEBUG = False
+ASSETS_AUTO_BUILD = True
 
 
 ## Password Hashing
@@ -2359,7 +2543,8 @@ Future Work
 * Getting this working: # RUN addgroup -S app && adduser -S app -G app
 * SECRET_KEY, DEBUG, and ALLOWED_HOSTS 
 * Redis for database concurrent connections, if in fact we get a lot of activity on the app.
-* Installing Bootstrap locally, rather than grabbing from 
+* Installing Bootstrap locally, rather than grabbing from CDN
+* Migrating data without losing the data
 
 Flask Bootstrap - serve from a CDN. https://pythonhosted.org/Flask-Bootstrap/
 
@@ -2380,6 +2565,7 @@ Static Content
 
 ## References
 
+* [Flask Assets Tutorial](https://hackersandslackers.com/flask-assets/)
 * [Flask Login Python Basics](https://pythonbasics.org/flask-login/).
 * [Setting up Postgres, SQLAlchemy, and Alembic](https://realpython.com/flask-by-example-part-2-postgres-sqlalchemy-and-alembic/)
 * [Deploying Django to Herokku with Docker](https://testdriven.io/blog/deploying-django-to-heroku-with-docker/)

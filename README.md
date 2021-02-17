@@ -2066,32 +2066,11 @@ What goes in these python files and what do they do?
 
 This protects parts of our app from unauthorized users.  Here's what we put in routes.py:
 
-```
-"""Logged-in page routes."""
-from flask import Blueprint, render_template, redirect, url_for
-from flask_login import current_user, login_required
+1. We have to define two blueprints - main_bp and home_bp. Blueprints help standardize how everything is laid out in terms of routes and templates, basically our folder structure.
+2. We then use .route to return templates from index.jinja2, dashboard.jinja2 and also a logout.
+3. 
 
 
-# Blueprint Configuration
-main_bp = Blueprint(
-    'main_bp', __name__,
-    template_folder='templates',
-    static_folder='static'
-)
-
-
-@main_bp.route('/', methods=['GET'])
-@login_required
-def dashboard():
-    """Logged-in User Dashboard."""
-    return render_template(
-        'dashboard.jinja2',
-        title='User Dashboard.',
-        template='dashboard-template',
-        current_user=current_user,
-        body="You are now logged in!"
-    )
-```
 
 Basically, this renders a template which gives a login message to the user on the main page, '/'. There is no static page that is used, but rather it writse it out on teh login page.
 
@@ -2151,6 +2130,8 @@ The assets are basically the CSS,
 [Per this tutorial here](https://hackersandslackers.com/flask-assets/), we have two sections of the 
 
 ###### Jinja2 Templates
+
+
 
 
 #### forms.py

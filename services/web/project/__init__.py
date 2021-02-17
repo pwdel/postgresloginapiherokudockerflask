@@ -1,8 +1,6 @@
 from flask import Flask, jsonify, render_template
 from flask_sqlalchemy import SQLAlchemy
 import os
-# import routes
-from .project import routes
 # import flask LoginManager
 from flask_login import LoginManager
 

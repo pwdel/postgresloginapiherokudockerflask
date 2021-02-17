@@ -1880,22 +1880,402 @@ Note that now that we have the code up and running, there is no need to re-build
 
 Once we create some basic pages, About, Home, Pricing, we are now left with, "Login."
 
-
 ## Login and Logout Functionality
 
-We're going to follow the [tutorial mentioned here](https://pythonbasics.org/flask-login/).
+We're going to follow the [tutorial mentioned here](https://pythonbasics.org/flask-login/).  However, this tutorial refers to the MongoDB engine for login/logout, so as a backup, we have [this tutorial](https://www.digitalocean.com/community/tutorials/how-to-add-authentication-to-your-app-with-flask-login) and [this tuorial](https://hackersandslackers.com/flask-login-user-authentication/) as references.clear
+
+First off, it appears that the page, "login.html" within the world of Flask may have a special, pre-defined meaning, basically that it is reserved for a special purpose. When we try to create a login.html page under the /templates folder and link to it, we get a 404 error. We likely need to keep it in the /templates/auth folder.
+
+### Additional Environmental Variables
+
+We add additional environmental variables to the config.py file. We have to remember that we later need to operationalize, or productionize these on Heroku or whatever server we are using as well.
+
+```
+    SECRET_KEY = environ.get('SECRET_KEY')
+
+    # Flask-Assets
+    LESS_BIN = environ.get('LESS_BIN')
+    ASSETS_DEBUG = environ.get('ASSETS_DEBUG')
+    LESS_RUN_IN_DEBUG = environ.get('LESS_RUN_IN_DEBUG')
+
+    # Static Assets
+    STATIC_FOLDER = 'static'
+    TEMPLATES_FOLDER = 'templates'
+    COMPRESSOR_DEBUG = environ.get('COMPRESSOR_DEBUG')
+
+    # Flask-SQLAlchemy
+    SQLALCHEMY_DATABASE_URI = environ.get('SQLALCHEMY_DATABASE_URI')
+    SQLALCHEMY_ECHO = False
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+```
+
+* SECRET_KEY variable is a string used to encrypt all of our user's passwords (or other sensitive information).  We can generate this as a long, non-sensical and impossible to remember character, generating a super long encrypted key using openssl keygen.
+
 
 ### Installing the Module
 
 We find that the most recent version of [Flask-Login](https://pypi.org/project/Flask-Login/) is 0.5.0. so we add this to our requirements.txt.
 
-### Server Binding
+### Server Binding and Routing
 
 "Server Binding" or "Socket Programming" is a way of connecting two nodes in a network to communicate with each other.  [This tutorial](https://www.tutorialspoint.com/unix_sockets/what_is_socket.htm) describes what sockets are, basically it's a way for computers to talk to each other with standard Unix file descripters, or an integer associated with an open file - a text file, terminal or something else. It's much like a low-level file descripter. Commands such as read(), write() work with sockets in the same way they do with files and pipes. FTP, SMTP and POP3 make use of sockets.
 
+We find the latest [Flask-Login](https://flask-login.readthedocs.io/en/latest/) version there.
+
+We add this to the requirements file, and our Dockerfile takes care of the pip installation.
+
+The two main things that we can do to get flask_login set up in terms of importing are:
+
+```
+from flask_login import LoginManager
+login_manager = LoginManager()
+```
+
+There is a minimum number of activities needed to set up a Flask login, which include:
+
+* Construct the core app object
+* Configuration
+* Initialize Plugins
+* Register blueprints
+* Create database models
+* Compile static assets.
+
+All of the above can be put into a function called, "create_app" which can be called at the start. Whereas perviosly we used the function create_db, we can instead put the above set of activities in a function, which can go in the __init__.py file.
+
+The [hackers and slackers tutorial]() that we are reading gives the following 
+
+```
+def create_app():
+    """Construct the core app object."""
+    app = Flask(__name__, instance_relative_config=False)
+
+    # Application Configuration
+    app.config.from_object('config.Config')
+
+    # Initialize Plugins
+    db.init_app(app)
+    login_manager.init_app(app)
+
+    with app.app_context():
+        from . import routes
+        from . import auth
+        from .assets import compile_assets
+
+        # Register Blueprints
+        app.register_blueprint(routes.main_bp)
+        app.register_blueprint(auth.auth_bp)
+
+        # Create Database Models
+        db.create_all()
+
+        # Compile static assets
+        if app.config['FLASK_ENV'] == 'development':
+            compile_assets(app)
+
+        return app
+```
+We have to adapt this to our own program, which involves docker and some standards which are in place to allow the app to work.
+
+* auth_bp is imported from auth.py, and our “main” application routes are associated with main_bp from routes.py
+
+We can build this in docker, and run this in development mode to see what kinds of errors we get.
+
+So after we build and then check the docker-compose logs, as expected for the line, "db = SQLAlchamey(app)" we get "NameError: name 'app' is not defined."
+
+So the first thing we needed to do is change db so that it does not require (app) as an argument.
+
+```
+# activate SQLAlchemy
+db = SQLAlchemy()
+# set login manager name
+login_manager = LoginManager()
+```
+
+Next, we needed to define app in order to pass it over to @app.route("/").  So we tried to define app = create_app(). However we get the error:
+
+```
+flask  |   File "/usr/src/app/project/__init__.py", line 26, in create_app
+flask  |     from . import routes
+flask  | ImportError: cannot import name 'routes' from partially initialized module 'project' (most likely due to a circular import) (/usr/src/app/project/__init__.py)
+```
+
+The reason for the inability to import "routes" comes from this line in the code:
+
+```
+    with app.app_context():
+        from . import routes
+        from . import auth
+        from .assets import compile_assets
+```
+* [app_context](https://flask.palletsprojects.com/en/1.1.x/api/#flask.Flask.app_context) is actually a native app module, so there is no problem picking that function up. app_context() makes current_app() point at this application.
+* [blueprints](https://flask.palletsprojects.com/en/1.1.x/api/#flask.Flask.blueprints) is also a native flask plugin. Blueprints, which are essentially the Flask equivalent of Python modules, in that they encapsulate feature-size sections of the application, such as user auth, profiles, etc.
+
+We need to understand more about how the Python import system works. What does it mean to use "from ." ?  This is what is known as a [Relative Import](https://docs.python.org/3/reference/import.html#package-relative-imports). 
+
+> Two or more leading dots indicate a relative import to the parent(s) of the current package, one level per dot after the first. For example, given the following package layout:
+
+```
+package/
+    __init__.py
+    subpackage1/
+        __init__.py
+        moduleX.py
+        moduleY.py
+    subpackage2/
+        __init__.py
+        moduleZ.py
+    moduleA.py
+```
+The following are valid:
+
+```
+from .moduleY import spam
+from .moduleY import spam as ham
+from . import moduleY
+from ..subpackage1 import moduleY
+from ..subpackage2.moduleZ import eggs
+from ..moduleA import foo
+```
+So basically saying, "from . import X" is like saying, "anywhere in the containing folder above, import X.py"
+
+Basically this means we need the following:
+
+* assets.py
+* auth.py
+* forms.py
+* models.py
+* routes.py
+
+And they should all be within the project folder, like so:
+
+```
+├── /project
+│   ├── __init__.py
+│   ├── assets.py
+│   ├── auth.py
+│   ├── config.py
+│   ├── forms.py
+│   ├── models.py
+│   ├── routes.py
+│   ├── /static
+│   └── /templates
+```
+What goes in these python files and what do they do?
+
+#### routes.py
+
+This protects parts of our app from unauthorized users.  Here's what we put in routes.py:
+
+```
+"""Logged-in page routes."""
+from flask import Blueprint, render_template, redirect, url_for
+from flask_login import current_user, login_required
 
 
-[Flask-Login](https://flask-login.readthedocs.io/en/latest/)
+# Blueprint Configuration
+main_bp = Blueprint(
+    'main_bp', __name__,
+    template_folder='templates',
+    static_folder='static'
+)
+
+
+@main_bp.route('/', methods=['GET'])
+@login_required
+def dashboard():
+    """Logged-in User Dashboard."""
+    return render_template(
+        'dashboard.jinja2',
+        title='User Dashboard.',
+        template='dashboard-template',
+        current_user=current_user,
+        body="You are now logged in!"
+    )
+```
+
+Basically, this renders a template which gives a login message to the user on the main page, '/'. There is no static page that is used, but rather it writse it out on teh login page.
+
+
+#### auth.py
+
+Auth essentially creates our login roles, as shown here:
+
+```
+"""Routes for user authentication."""
+from flask import Blueprint
+
+
+# Blueprint Configuration
+auth_bp = Blueprint(
+    'auth_bp', __name__,
+    template_folder='templates',
+    static_folder='static'
+)
+
+
+@auth_bp.route('/login', methods=['GET', 'POST'])
+def login():
+    # Login route logic goes here
+
+
+@auth_bp.route('/signup', methods=['GET', 'POST'])
+def signup():
+    # Signup logic goes here
+```
+
+We have a route for login and a route for signup.
+
+#### assets.py
+
+
+
+#### forms.py
+
+
+
+#### models.py
+
+
+
+### User Model
+
+We refer to login_view as "login," within this __init__.py file. This is routed below as an @app.route with the following logic:
+
+```
+# create default route for user login
+# define def login(self,xxx) as a function which defines the login code
+@app.route('/login', methods=['POST'])
+def login():
+    info = json.loads(request.data)
+    username = info.get('username', 'guest')
+    password = info.get('password', '') 
+    user = User.objects(name=username,
+                        password=password).first()
+    if user:
+        # the actual code for the user login
+        login_user(user)
+        return jsonify(user.to_json())
+    else:
+        return jsonify({"status": 401,
+                        "reason": "Username or Password Error"})
+```
+
+#### User Model
+
+Our user model is not sufficient.  Basically our current user model looks like the following:
+
+```
+class User(db.Model):
+    __tablename__ = "users"
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(128), unique=True, nullable=False)
+    active = db.Column(db.Boolean(), default=True, nullable=False)
+    def __init__(self, email):
+        self.email = email
+```
+
+This only includes an id, email and reference to whether it's active or not.  We need to add the following properites:
+
+* is_authenticated: The current user is authorized because we can operate when we log on, so the default is the authorized
+* is_anonymous: it is obvious that if the current user is anonymous, it must not be
+* is_active: for judging whether the current user has been activated, the activated user can log on to
+* get_id: returns the id. But we still cannot know who the current login user is, so we also need to tell Flask-Login how to obtain the user’s method through an id:
+
+
+```
+class User(db.Document):   
+    name = db.StringField()
+    password = db.StringField()
+    email = db.StringField()                                                                                                 
+    def to_json(self):        
+        return {"name": self.name,
+                "email": self.email}
+
+    def is_authenticated(self):
+        return True
+
+    def is_active(self):   
+        return True           
+
+    def is_anonymous(self):
+        return False          
+
+    def get_id(self):         
+        return str(self.id)
+```
+
+We then need a login manager, which is able to query who the current login user us, so there fore we can judge whether they are able to login or not.
+
+```
+@login_manager.user_loader
+def load_user(user_id):
+    return User.objects(id=user_id).first()
+```
+
+#### Landing Page Rights and Finalization
+
+The following limits the increase, modify, and delete HTTP operations to be user-enabled.
+
+```
+def query_records():
+    name = request.args.get('name')
+    user = User.objects(name=name).first()
+    if not user:
+        return jsonify({'error': 'data not found'})
+    else:
+        return jsonify(user.to_json())
+@app.route('/', methods=['PUT'])
+@login_required
+
+def update_record():
+    record = json.loads(request.data)
+    user = User.objects(name=record['name']).first()
+    if not user:
+        return jsonify({'error': 'data not found'})
+    else:
+        user.update(email=record['email'],
+                    password=record['password'])
+    return jsonify(user.to_json())
+@app.route('/', methods=['DELETE'])
+@login_required
+
+def delete_record():
+    record = json.loads(request.data)
+    user = User.objects(name=record['name']).first()
+    if not user:
+        return jsonify({'error': 'data not found'})
+    else:
+        user.delete()
+    return jsonify(user.to_json())
+
+```
+
+#### Logout
+
+```
+# Logout Logic
+
+from flask.ext.login import logout_user
+@app.route('/logout', methods=['POST'])
+def logout():
+    logout_user()
+    return jsonify(**{'result': 200,
+                      'data': {'message': 'logout success'}})
+
+# Checking if logged in in the first place
+
+from flask.ext.login import current_user
+@app.route('/user_info', methods=['POST'])
+def user_info():
+    if current_user.is_authenticated:
+        resp = {"result": 200,
+                "data": current_user.to_json()}
+    else:                                                                                                                    
+        resp = {"result": 401,
+                "data": {"message": "user no login"}}
+    return jsonify(**resp)
+```
+
 
 https://realpython.com/using-flask-login-for-user-management-with-flask/
 
@@ -1927,6 +2307,28 @@ https://blog.miguelgrinberg.com/post/the-flask-mega-tutorial-part-iii-web-forms
 
 ## Pushing Everything to Production
 
+We need to set these variables to put everything into production, including the login capabilities.
+
+```
+    SECRET_KEY = environ.get('SECRET_KEY')
+
+    # Flask-Assets
+    LESS_BIN = environ.get('LESS_BIN')
+    ASSETS_DEBUG = environ.get('ASSETS_DEBUG')
+    LESS_RUN_IN_DEBUG = environ.get('LESS_RUN_IN_DEBUG')
+
+    # Static Assets
+    STATIC_FOLDER = 'static'
+    TEMPLATES_FOLDER = 'templates'
+    COMPRESSOR_DEBUG = environ.get('COMPRESSOR_DEBUG')
+
+    # Flask-SQLAlchemy
+    SQLALCHEMY_DATABASE_URI = environ.get('SQLALCHEMY_DATABASE_URI')
+    SQLALCHEMY_ECHO = False
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+```
+
+
 ## Conclusion
 
 Thoughts:
@@ -1943,6 +2345,7 @@ Thoughts:
 
 Future Work
 
+* Refactoring code, putting initialization into diffrent functions and classes
 * Getting flake8 working.
 * Getting this working: # RUN addgroup -S app && adduser -S app -G app
 * SECRET_KEY, DEBUG, and ALLOWED_HOSTS 

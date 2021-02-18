@@ -2726,18 +2726,291 @@ We used:
 test@hello.com
 DDa8G67ZYTy9dlo8
 
-After hitting, "register" we get another error, a jinja2 error.
+After hitting, "register" we get another error, a jinja2 error
 
 #### jinja2.exceptions.TemplateNotFound
 
+This was basically a lack of dashboard template - there was no dashboad.jinja2 file. So, we just created a blank one and it worked.
 
+Now that we have a blank dashboard.jinja2 file, what should we do with it?
+
+
+## Implementing Logout
+
+This hackers and slackers tutorial on flask-session [talks about how to manage the logout functionality](https://hackersandslackers.com/managing-user-session-variables-with-flask-sessions-and-redis).  
+
+This tutorial talks about implementing Redis, which is yet another layer of database cache that, if possible we should do in a future tutorial. Historically, we have used Redis as a way to lessen the usage on a database where a chat app was in use. We do not anticipate that level of usage at ths time, so it will not be necessary - if we can avoid it, that will be best.
+
+### Initializing the Session within __init__.py
+
+First we need a new function, "compile_auth_assets" which gets imported from auth.py. Looking on our auth.py and looking all over the web, I can't find where this may have come from and what this function was for, so it would be better to leave it out.
+
+Looking at our routes.py file we have a /logout function.
+
+```
+@main_bp.route("/logout")
+@login_required
+def logout():
+    """User log-out logic."""
+    logout_user()
+    return redirect(url_for('auth_bp.login'))
+```
+
+We also note that in auth.py we already have:
+
+```
+from flask_login import login_required, logout_user, current_user, login_user
+```
+
+On the login page, we have a couple different div's which represent the location to enter one's email and password, followed by a, "Login" button, represented as follows:
+
+```
+    <form method="POST" action="/login">
+      {{ form.csrf_token }}
+
+      <fieldset class="email">
+        {{ form.email.label }}
+        {{ form.email(placeholder='youremail@example.com') }}
+        {% if form.email.errors %}
+          <ul class="errors">
+            {% for error in form.email.errors %}
+              <li>{{ error }}</li>{% endfor %}
+          </ul>
+        {% endif %}
+      </fieldset>
+
+      <fieldset class="password">
+        {{ form.password.label }}
+        {{ form.password }}
+        {% if form.email.errors %}
+          <ul class="errors">
+            {% for error in form.password.errors %}
+              <li>{{ error }}</li>{% endfor %}
+          </ul>
+        {% endif %}
+      </fieldset>
+
+      <div class="submit-button">
+        {{ form.submit }}
+      </div>
+      <fieldset class="email">
+        {{ form.email.label }}
+        {{ form.email(placeholder='youremail@example.com') }}
+        {% if form.email.errors %}
+          <ul class="errors">
+            {% for error in form.email.errors %}
+              <li>{{ error }}</li>{% endfor %}
+          </ul>
+        {% endif %}
+      </fieldset>
+
+      <fieldset class="password">
+        {{ form.password.label }}
+        {{ form.password }}
+        {% if form.email.errors %}
+          <ul class="errors">
+            {% for error in form.password.errors %}
+              <li>{{ error }}</li>{% endfor %}
+          </ul>
+        {% endif %}
+      </fieldset>
+
+      <div class="submit-button">
+        {{ form.submit }}
+      </div>
+  </form>
+```
+
+The important parts of this appear to be the csrf_token with the associated action along with the button to complete the action, whatever it is. Note that everything is encapsulated within <form> tags. From this example, it is reasonable to think that our logout button would look like the following:
+
+```
+    <form method="POST" action="/logout">
+      {{ form.csrf_token }}
+
+      <div class="submit-button">
+        {{ form.submit }}
+      </div>
+    </form>
+```
+
+This would work of course assuming that we have the proper /logout actions set everywhere.
+
+Logging in using the credentials we had created earlier...
+
+* test@hello.com
+* DDa8G67ZYTy9dlo8
+
+First off, we had to re-create those credentials, because the volume had been lost. Secondly, we got a, "form undefined" error.
+
+We noticed earlier that we did not have a /logout function in our __init__.py file.
+
+From the [flask-login documentation](https://flask-login.readthedocs.io/en/latest/) the default function seems to be:
+
+```
+# define logout
+@app.route('/logout', methods=['POST'])
+def logout():
+    logout_user(user)
+    return redirect('/')
+
+```
+
+Part of our confusion with using blueprints is that we don't know where this "somewhere" should be. The blueprints convention within flask seems to override all other pages and redirects.
+
+What is happening is that, any page where the user doesn't have authorization to view, for example, "/" - there is a redirect to /login, with the message, "You must be logged in to view that page."
+
+Our main blueprint route function definition from the routes.py file is:
+
+```
+@main_bp.route("/logout")
+@login_required
+def logout():
+    """User log-out logic."""
+    logout_user()
+    return redirect(url_for('auth_bp.login'))
+```
+
+Testing out on localhost... and we get the error "jinja2.exceptions.UndefinedError: 'form' is undefined."
+
+Looking at this [Stackexchange answer on the topic](https://stackoverflow.com/questions/19506109/rendering-template-gives-jinja2-exceptions-undefinederror-form-is-undefined) we see that we:
+
+> you've never passed it as part of your render_template method (you've only defined title, user and posts)...
+
+Therefore, looking at our dashboard and logout route:
+
+```
+@main_bp.route('/', methods=['GET'])
+@login_required
+def dashboard():
+    """Logged-in User Dashboard."""
+    return render_template(
+        'dashboard.jinja2',
+        title='User Dashboard.',
+        template='dashboard-template',
+        current_user=current_user,
+        body="You are now logged in!"
+    )
+
+
+@main_bp.route("/logout")
+@login_required
+def logout():
+    """User log-out logic."""
+    logout_user()
+    return redirect(url_for('auth_bp.login'))
+```
+
+It's possible that the url_for function is not working.  We could try putting our own render_template within there instead.
+
+However, where else in the entire codebase do we see 'login.jinja2' being used at all?  We see it within auth.py:
+
+```
+    return render_template(
+        'login.jinja2',
+        form=form,
+        title='Log in.',
+        template='login-page',
+        body="Log in with your User account."
+    )
+```
+
+In fact, the auth.py function seems to be completely dedicated to logging inm with no logout. Are we missing something?
+
+We see in this tutorial on [flask-login that there is a /logout function added on routes.py](https://hackersandslackers.com/flask-login-user-authentication/).
+
+```
+@main_bp.route("/logout")
+@login_required
+def logout():
+    """User log-out logic."""
+    logout_user()
+    return redirect(url_for('auth_bp.login'))
+```
+So what is auth_bp.login?  "auth_bp" comes from auth.py and .login is the login function inhereted from there. So basically the auth.py file is helping to dynamically create the URL.
+
+```
+auth_bp = Blueprint(
+    'auth_bp', __name__,
+    template_folder='templates',
+    static_folder='static'
+)
+```
+Above is the template_folder and static_folder used which auth_bp points toward.  Then, the "@auth_bp.route('/signup', methods=['GET', 'POST'])" function does the lifting.  
+
+The bp.route('.signup'...)" returns render_template which includes signup.jinja2 template, and fills the data within that template for the form.
+
+So hypothetically, we could create a *link* rather than a form, to the auth_bp logout function. Basically, there is no need to have a logout function in __init__.py, we just link back to the appropriate blueprint function. How does Flask know how to use this blueprint function? We had declared main_bp as a blueprint within routes.py by importing Blueprints and then doing, "main_bp = Blueprint()"
+
+We can create a link on dashboad.jinja2:
+
+  <div>
+  <a href="{{ url_for('main_bp.logout') }}">Log Out.</a>
+  </div>
+
+With that, it works.  Now that we understand more about how blueprints work, hypothetically all other routes can be taken away from the __init__.py file. We removed the following:
+
+```
+# dynamically building links as a route rather than as a hard coded page
+@app.route('/')
+def home():
+    """Landing page."""
+    nav = [
+        {'name': 'Home', 'url': 'https://example.com/1'},
+        {'name': 'About', 'url': 'https://example.com/2'},
+        {'name': 'Pics', 'url': 'https://example.com/3'}
+    ]
+    return render_template(
+        'home.html',
+        nav=nav,
+        title="Jinja Demo Site",
+        description="Smarter page templates with Flask & Jinja."
+    )
+
+# create default route for user login
+# define def login(self,xxx) as a function which defines the login code
+@app.route('/login', methods=['POST'])
+def login():
+    info = json.loads(request.data)
+    username = info.get('username', 'guest')
+    password = info.get('password', '') 
+    user = User.objects(name=username,
+                        password=password).first()
+    if user:
+        # the actual code for the user login
+        login_user(user)
+        return jsonify(user.to_json())
+    else:
+        return jsonify({"status": 401,
+                        "reason": "Username or Password Error"})
+
+
+# route to about page
+@app.route('/about/')
+def about():
+    return render_template('html/about.html')
+
+```
+
+We also put all .html files into a /html folder in our app, which likely can be deleted in the future.
 
 ## Other Pre-Production Work
 
+So before we put things into production, we need to think about Docker once again. Through the process of going through these tutorials to build a site, we ended up using LESS, which required NPM to install.
+
+NPM is massive, in terms of adding to our image size, so it would be better if we didn't have to use it at all.
+
 #### Shrinking Size of Node
 
-https://antonfisher.com/posts/2018/03/19/reducing-docker-image-size-of-a-node-js-application/
+There is another tutorial on, "shrinking the size of NODE" [here](https://antonfisher.com/posts/2018/03/19/reducing-docker-image-size-of-a-node-js-application/) however from what we talked about above, it would better to just eliminate the use of NPM overall.
 
+#### Getting Rid of Less Completely
+
+* from requirements.txt we remove lesscpy==0.14.0 lessc==0.1.3
+* from assets.py remove "src/less/.less" and 'main_bp/homepage.less'
+* from config.py remove LESS_RUN_IN_DEBUG = environ.get('LESS_RUN_IN_DEBUG'), LESS_BIN = environ.get('LESS_BIN'), LESS_BIN = '/usr/local/bin/lessc'
+* from static/src/less/ delete nav.less, style.less, variables.less.
+
+Sure enough, when we got rid of these elements as well as NPM within our docker file, our Docker image shrunk in size from 499MB down to 164MB.
 
 
 
@@ -2745,13 +3018,13 @@ https://antonfisher.com/posts/2018/03/19/reducing-docker-image-size-of-a-node-js
 
 We need to set these variables to put everything into production, including the login capabilities.
 
+### Setting Environmental Variables in Heroku
+
 ```
     SECRET_KEY = environ.get('SECRET_KEY')
 
     # Flask-Assets
-    LESS_BIN = environ.get('LESS_BIN')
     ASSETS_DEBUG = environ.get('ASSETS_DEBUG')
-    LESS_RUN_IN_DEBUG = environ.get('LESS_RUN_IN_DEBUG')
 
     # Static Assets
     STATIC_FOLDER = 'static'
@@ -2763,6 +3036,42 @@ We need to set these variables to put everything into production, including the 
     SQLALCHEMY_ECHO = False
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 ```
+
+SECRET_KEY we can generate using:
+
+```
+openssl rand -base64 48
+```
+
+Hypothetically we should use 64 bytes, which is approximately 64 letters. ASCII was actually a 7 bit character set with 128 possible characters. Unicode which is what we use today for most things uses two bytes per character. Some server things may still use ASCII, unicode is more including accents and things like that.
+
+So the above should work to make a sufficiently long. The reason for the = at the end of the string from openssl is because the last group contained only 8 or 16 bits, so we can skip those.
+
+#### COMPRESSOR_DEBUG
+
+COMPRESSOR_DEBUG
+
+This appears to be able to either set as True or False.
+
+Default appears to be false, so we can set it as False.
+
+#### ASSETS_DEBUG
+
+ASSETS_DEBUG
+
+If you set ASSETS_DEBUG = True in your config, Flask-Assets will output each source file individually instead of merging them.
+
+False means Flask-Assets will bundle our static files while we're running Flask in debug mode. Within our config.py file we had previously set it as:
+
+ASSETS_DEBUG = False
+
+So we set it within the environment as well.  We can change this back in the future if needed.
+
+We had also set:
+
+ASSETS_AUTO_BUILD = True
+
+### Database and Putting Into Production
 
 
 ## Conclusion
@@ -2781,6 +3090,7 @@ Thoughts:
 
 Future Work
 
+* Improving Blueprint, per https://flaskblueprints.hackersandslackers.app/
 * Refactoring code, putting initialization into diffrent functions and classes
 * Getting flake8 working.
 * Getting this working: # RUN addgroup -S app && adduser -S app -G app

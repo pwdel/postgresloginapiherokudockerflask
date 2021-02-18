@@ -11,7 +11,6 @@ main_bp = Blueprint(
     static_folder='static'
 )
 
-
 # Blueprint Configuration
 home_bp = Blueprint(
     'home_bp', __name__,

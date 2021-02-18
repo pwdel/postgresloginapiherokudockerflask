@@ -2,10 +2,14 @@
 <html lang="en">
 
 <head>
+
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+  <title>{% block title %}Linguo{% endblock %}</title>
+
   <meta charset="utf-8"/>
   <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
   <title>{{ title }} | Flask Blueprint Tutorial</title>
-  <meta name="description" content="Structure your Flask apps in a scalable and intelligent way using Blueprints."/>
+  <meta name="description" content="Checkout more info at PatDel.com."/>
   <meta name="HandheldFriendly" content="True"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <meta name="theme-color" content="#5eb9d7"/>
@@ -13,16 +17,16 @@
   <meta property="og:site_name" content="{{ title }}"/>
   <meta property="og:type" content="website"/>
   <meta property="og:title" content="{{ title }}"/>
-  <meta property="og:description"  content="Structure your Flask apps in a scalable and intelligent way using Blueprints."/>
-  <meta property="og:url" content="https://flaskblueprints.hackersandslackers.app/"/>
+  <meta property="og:description"  content="Checkout more info at PatDel.com."/>
+  <meta property="og:url" content="https://www.patdel.com"/>
   <meta name="twitter:title" content="{{ title }}"/>
-  <meta name="twitter:description" content="Structure your Flask apps in a scalable and intelligent way using Blueprints."/>
-  <meta name="twitter:url" content="https://flaskblueprints.hackersandslackers.app/"/>
-  <meta name="twitter:site" content="@hackersslackers"/>
-  <meta name="twitter:creator" content="@toddrbirchard"/>
+  <meta name="twitter:description" content="Checkout more info at PatDel.com."/>
+  <meta name="twitter:url" content="https://www.patdel.com"/>
+  <meta name="twitter:site" content="@iotmpls"/>
+  <meta name="twitter:creator" content="@iotmpls"/>
   <meta name="twitter:card" content="summary_large_image"/>
-  <meta name="twitter:image" content="https://hackersandslackers-cdn.storage.googleapis.com/2020/05/flaskblueprints-3@2x.jpg"/>
-  <meta property="og:image" content="https://hackersandslackers-cdn.storage.googleapis.com/2020/05/flaskblueprints-3@2x.jpg"/>
+  <meta name="twitter:image" content=""/>
+  <meta property="og:image" content=""/>
   <meta property="og:image:width" content="1000"/>
   <meta property="og:image:height" content="523"/>
   <link href="https://fonts.googleapis.com/css?family=Poppins:200,300,400,500" rel="stylesheet">
@@ -33,7 +37,6 @@
 
 <body class="{{ template }}">
   {% block content %}{% endblock %}
-  {% include 'analytics.jinja2' %}
 </body>
 
 </html>

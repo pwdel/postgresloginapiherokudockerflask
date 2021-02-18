@@ -1,0 +1,21 @@
+{% extends "layout.jinja2" %}
+
+{% block content %}
+  <div class="form-wrapper">
+
+    <div class="logo">
+      <img
+        src="{{ url_for('static', filename='img/linguo.jpg') }}"
+        alt="logo"
+      />
+    </div>
+
+    <h1>Dashboard</h1>
+
+  <div>
+  <a href="{{ url_for('main_bp.logout') }}">Log Out.</a>
+  </div>
+
+  </div>
+
+{% endblock %}

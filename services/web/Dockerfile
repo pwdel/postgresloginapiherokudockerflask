@@ -19,11 +19,6 @@ ENV SECRET_KEY 'whatever'
 # install system dependencies
 RUN apt-get update && apt-get install -y netcat
 
-# install NPM to be able to install less
-RUN apt-get install -y npm
-# globally install less
-RUN npm install less -g
-
 # install dependencies
 RUN pip install --upgrade pip
 

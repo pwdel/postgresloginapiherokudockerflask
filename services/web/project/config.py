@@ -4,11 +4,6 @@ from os import environ, path
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
-# requires the NPM library called LESS (known to the system as lessc) 
-# to be installed on our system in order to compile LESS into CSS.
-# equivalent to SASS_BIN
-LESS_BIN = '/usr/local/bin/lessc'
-
 # False means Flask-Assets will bundle our static files while we're running Flask in debug mode. 
 ASSETS_DEBUG = False
 
@@ -23,9 +18,7 @@ class Config(object):
     SECRET_KEY = environ.get('SECRET_KEY')
 
     # Flask-Assets
-    #LESS_BIN = environ.get('LESS_BIN')
     #ASSETS_DEBUG = environ.get('ASSETS_DEBUG')
-    #LESS_RUN_IN_DEBUG = environ.get('LESS_RUN_IN_DEBUG')
 
     # Static Assets
     STATIC_FOLDER = 'static'

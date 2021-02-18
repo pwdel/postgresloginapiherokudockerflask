@@ -6,9 +6,7 @@ def compile_static_assets(assets):
 
     # Main asset bundles
     main_style_bundle = Bundle(
-        'src/less/*.less',
-        'main_bp/homepage.less',
-        filters='less,cssmin',
+        filters='cssmin',
         output='dist/css/landing.css',
         extra={'rel': 'stylesheet/css'}
     )
@@ -20,9 +18,7 @@ def compile_static_assets(assets):
 
     # Admin asset bundleds
     admin_style_bundle = Bundle(
-        'src/less/*.less',
-        'admin_bp/admin.less',
-        filters='less,cssmin',
+        filters='cssmin',
         output='dist/css/account.css',
         extra={'rel': 'stylesheet/css'}
     )

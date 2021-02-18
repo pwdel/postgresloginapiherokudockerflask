@@ -14,8 +14,6 @@ auth_bp = Blueprint(
 )
 
 
-
-
 @auth_bp.route('/signup', methods=['GET', 'POST'])
 def signup():
     """

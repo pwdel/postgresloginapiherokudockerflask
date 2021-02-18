@@ -3071,51 +3071,127 @@ We had also set:
 
 ASSETS_AUTO_BUILD = True
 
-### Database and Putting Into Production
+### Dockerfiles and Docker Compose Files
 
+1. So the first thing we need to do is go back to our production files:
+
+* docker-compose.prod.yml
+* Dockerfile.prod
+
+We need to figure out what changes were made on our dev files and transport them over there 
+
+#### Dockerfile Discrepencies
+
+The only new variable we seemed to have added to the dev Dockerfile was:
+
+ENV SECRET_KEY 'whatever'
+
+Which, for our production we do not need because this is an environmental variable.
+
+#### YML Files Discrepencies
+
+There appears to have not been any changes in the YML files, as these were all previously environmental.
+
+The changes we made were mostly to the actual application layer, the flask app itself, so we should be OK to push things to production without any further environmental, docker and yml modifications.
+
+### Running Production Docker Locally
+
+We should first turn down or turn off all Docker processes on our local machine with sudo docker-compose down.
+
+Then, we can rebuild the production files with:
+
+```
+$ sudo docker-compose -f docker-compose.prod.yml up -d --build
+```
+
+As a reminder, the larger file, the 228MB file is not the one that needs to be pushed to Heroku, it's the smaller file, the 167MB file, which is the compressed version.
+
+There should be no Flask application port, as this is assigned dynamically by Heroku.
+
+### Pushing to Heroku
+
+1. Tag with: sudo docker tag hello_flask registry.heroku.com/pure-everglades-62431/web
+
+2. Push to registry with: sudo docker tag hello_flask registry.heroku.com/pure-everglades-62431/web
+
+3. Release to web with: heroku container:release web
+
+### Setting Up Database
+
+We should be able to set up the database by releasing the new software. The old table should hypothetically be written over by the new table.
+
+### Seeding Database
+
+Seeding the database just involves logging in.
+
+### Migrating the Database
+
+The key question at this point is - what happened to the old data?
+
+Within the datastore connected to, "pure-everglades" - we see that there are two tables whereas previously there was one.
+
+Within the, "schema explorer" we see new properties:
+
+created_on timestamp
+email varchar
+id int4
+last_login timestamp
+name varchar
+password varchar
+website varchar
+
+These are essentially the variables created upon login at the start.
+
+When we look at the tables, we can see that there are two tables, with the old table still in existence.
+
+However, we have a couple of options:
+
+1. Reset Database
+2. Destroy Database
+
+We are not really sure what the difference is, and whether we would need to rebuild the app if we clicked either of those buttons. We can click, "Reset Database" to see what happens.
+
+We tried hitting, "Reset Database."  After doing this, we attempetd to re-register, but there was an internal server error.  So, it appears that this actually requires a re-release of the software to re-provision the database itself.
+
+When attempting to re-release, we attempted first to simply do, "heroku container:release web" however we got a message saying that heroku is already running this container, so we got a message that says that, "Layer Already Exists."
+
+However, we were able to do a, "rollback" to version 38, and then re-release the code to what is now v40.
+
+Once we do this, and then re-register a user, we have a completely fresh database structure, with only one table.
 
 ## Conclusion
 
-Thoughts:
+There are a number of important things I learned through completing this project, as well as a few possible ideas for improvement in the future. Some reflections:
 
-* PORTS, defaulting to blank, different production environments.
-* Multi-stage builds, zipping files to be able to more easily pass to production
-* Uselessness of the docker-compose.yml and docker-compose.prod.yml file versus the Dockerfile and Dockerfile.prod themselves.
+### Learnings
+
+* PORTS, while in development they are a known element, in production they may default to blank to be assigned by a server.
+* There is a such thing as, "Multi-stage builds,"" zipping files to be able to more easily pass to production.
+* There is a particular uselessness to certain parts of the docker-compose.yml and docker-compose.prod.yml file versus the Dockerfile and Dockerfile.prod themselves.
+
+
+### Future Improvements
+
 * Adaptable Dockerfile for both Production and Dev, depending upon command sent...rather than different dockerfiles?  Or is it just the YML file?
-* What do the YML files really do anyway?  They don't seem to have much control over the situation.
+* Find out what do the YML files really do anyway?  They don't seem to have much control over the situation.
 * How do we prevent dockerfiles from being copied over into the production environment?  Does that matter?
 * Do environmental variables always need to be set manually within Heroku?  If so why?  Is this more secure?
-* What is the GPG key?
+* What is the GPG key and why do we use it?
 * When do we need to rebuild Docker and when can we hold off? Is it only for static pages or is it for any functions as well?
 
-Future Work
+### Future Work
 
-* Improving Blueprint, per https://flaskblueprints.hackersandslackers.app/
+* Improving the app's Blueprint, per https://flaskblueprints.hackersandslackers.app/
 * Refactoring code, putting initialization into diffrent functions and classes
 * Getting flake8 working.
 * Getting this working: # RUN addgroup -S app && adduser -S app -G app
-* SECRET_KEY, DEBUG, and ALLOWED_HOSTS 
+* SECRET_KEY, DEBUG, and ALLOWED_HOSTS to be able to have a user that can work on the server that is not a root user.
 * Redis for database concurrent connections, if in fact we get a lot of activity on the app.
 * Installing Bootstrap locally, rather than grabbing from CDN
 * Migrating data without losing the data
 * Get https://pypi.org/project/python-dotenv/ dotenv working
-
-Flask Bootstrap - serve from a CDN. https://pythonhosted.org/Flask-Bootstrap/
-
-https://pythonhosted.org/Flask-Bootstrap/basic-usage.html#sample-application
-
-https://flask-menu.readthedocs.io/en/latest/
-
-https://pythonhow.com/flask-navigation-menu/
-
-Flask CSS 
-
-https://pythonhow.com/add-css-to-flask-website/
-
-NGinx
-
-Static Content
-
+* Serving to a CDN, rather than just merely from a CDN with  Flask Bootstrap or some other tool - serve from a CDN. https://pythonhosted.org/Flask-Bootstrap/
+* NGinx
 
 ## References
 

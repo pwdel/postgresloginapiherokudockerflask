@@ -3,8 +3,6 @@ from flask import Blueprint, render_template, redirect, url_for
 from flask_login import current_user, login_required
 from flask_login import logout_user
 
-
-
 # Blueprint Configuration
 # we define __name__ as the main blueprint, and the templates/static folder.
 main_bp = Blueprint(

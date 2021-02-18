@@ -2462,9 +2462,12 @@ We talked about this above, and have installed it in requirements.txt.
 
 However we also need to install:
 
-* lesscpy
-* cssmin
-* jsmin
+* [lesscpy](https://pypi.org/project/lesscpy/) - LESS compiler
+
+[Basically LESS is CSS, but with more features.](http://lesscss.org/)
+
+* [cssmin](https://pypi.org/project/cssmin/) - css minify
+* [jsmin](https://pypi.org/project/jsmin/) - javascript minify
 
 Within our config.py file, we add:
 
@@ -2472,30 +2475,270 @@ LESS_BIN = '/usr/local/bin/lessc'
 ASSETS_DEBUG = False
 ASSETS_AUTO_BUILD = True
 
+We then need to configure our app structure:
 
-## Password Hashing
+```
+/project
+├── /static
+│   ├── /img
+│   ├── /dist
+│   │   ├── /css
+│   │   └── /js
+│   └── /src
+│       ├── /js
+│       └── /less
+├─ /templates
+├─ config.py
+└─ __init__.py
+```
 
-https://flask-bcrypt.readthedocs.io/en/latest/
+We're going to set up Flask-Assets to look for raw files to compile in static/src/less and /static/src/js andthen output the results to /static/dist/less and /static/dist/js
 
-## Flask Login Library
+We then import files into app.py and create an Environment instance, initizlizing it against flask's app object. 
 
-https://flask-login.readthedocs.io/en/latest/
-
-## User Model
-
-https://flask-user.readthedocs.io/en/latest/data_models.html
+Our first bundle comes from LESS files found in our static/src/less directory. We compile these into CSS and minify the resutling CSS.
 
 
+#### Rendering with Jinja
+
+[Jinja Tutorial](https://hackersandslackers.com/flask-jinja-templates/)
+
+Basically we're going to extend using Jinja, similar to how we have done earlier in this demonstration.
+
+home.html
+
+```
+{% extends 'layout.html' %}
+
+{% block content %}
+    <div class="container">
+        <h1>{{title}}</h1>
+        <p>{{description}}</p>
+    </div>
+{% endblock %}
+```
+For additional errors in the blueprint tutorial, we have [this github repo](https://github.com/hackersandslackers/flask-blueprint-tutorial/tree/master/flask_blueprint_tutorial) which includes the hackersandslackers flask blueprint tutorial.
+
+This includes templates:
+
+* analytics.jinja2
+* blueprintinfo.jinja2
+* layout.jinja2
+* navigation.jinja2
 
 
-## User Registration
+#### NameError: name 'Flask' is not defined
 
-https://dev.to/imdhruv99/flask-login-register-logout-implementation-3hep
+```
+flask  |   File "/usr/src/app/project/assets.py", line 6, in <module>
+flask  |     app = Flask(__name__, instance_relative_config=False)
+flask  | NameError: name 'Flask' is not defined
+
+```
+
+basically we need to import Flask
+
+```
+from flask import Flask
+```
+Once this is in place, it works.
+
+#### webassets.exceptions.FilterError: Program file not found: lessc.
+
+We should add [this package for lessc](https://pypi.org/project/lessc/) to our requirements.txt:
+
+Looking at the [webassets documentation](https://webassets.readthedocs.io/en/latest/#less) it says [class webassets.filter.less.Less() depends upon the NodeJS implementation of less, which is installable via npm](https://webassets.readthedocs.io/en/latest/builtin_filters.html#webassets.filter.less.Less)
+
+Hypothetically npm is a python package, [npm 0.1.1](https://pypi.org/project/npm/) however it looks old and not used and frozen.
+
+We can install npm on the Dockerfile:
+
+```
+# install NPM to be able to install less
+RUN apt-get install -y npm
+# globally install less
+RUN npm install less -g
+```
+Of course after doing this, our image size is going to be gigantic.
+
+Sure enough, it went from 165MB to 494MB just from installing node.  Probably what might be better is just eliminating less from this app, since it doesn't appear to be compatible with Python 3.9.
+
+#### webassets.exceptions.BuildError: [Errno 2] No such file or directory: '/usr/src/app/project/static/src/js/main.js'
+
+We simply created a blank file named main.js in that directory.
+
+#### NameError: name 'app' is not defined for routes.py
+
+```
+flask  |   File "/usr/src/app/project/routes.py", line 58, in <module>
+flask  |     @app.route('/')
+
+```
+
+Within the routes.py file we need to import:
+
+```
+from project import app
+```
+However, then we have the problem:
+
+"ImportError: cannot import name 'app' from partially initialized module 'project'"
+
+Basically, we have a line within, "routes" which is attempting to dynamically build a page. This might be more suitable putting within the __init__.py file for now, where app actually sits, since otherwise it's self-referential.
+
+```
+# dynamically building links as a route rather than as a hard coded page
+@app.route('/')
+def home():
+    """Landing page."""
+    nav = [
+        {'name': 'Home', 'url': 'https://example.com/1'},
+        {'name': 'About', 'url': 'https://example.com/2'},
+        {'name': 'Pics', 'url': 'https://example.com/3'}
+    ]
+    return render_template(
+        'home.html',
+        nav=nav,
+        title="Jinja Demo Site",
+        description="Smarter page templates with Flask & Jinja."
+    )
+```
+Basically we are replacing this snippet:
+
+```
+# run app
+@app.route("/")
+def home():
+  return render_template('home.html')
+```
+
+#### AttributeError: 'Flask' object has no attribute 'register'
+
+Here we see:
+
+```
+flask  |   File "/usr/src/app/project/assets.py", line 63, in compile_static_assets
+flask  |     assets.register('main_styles', main_style_bundle)
+flask  | AttributeError: 'Flask' object has no attribute 'register'
+```
+This is an error with flask_assets, however it's calling it as "Flask" object has no attribute "register" when flask_assets is supposed to be the one with the register attribute.
+
+Since the code above does not seem to be doing anything, for now we will eliminate the following function.  However doing this produces the same error as we are using this .register() attribute multiple times.
+
+The original tutorial we got this code about [assets.register()](https://hackersandslackers.com/flask-assets) from can be found here.
+
+When we change the back to "from project import app"
+
+We get this error again, "ImportError: cannot import name 'app' from partially initialized module 'project' (most likely due to a circular import) (/usr/src/app/project/__init__.py)"
+
+Take it out completly - did nothing.
+
+We notice some small discrepencies in the __init__.py file:
+
+* assets = Environment() needs to be added at the top
+* # initialize asset plugin with "assets.init_app(app)"
+
+Ultimately, it was due to a discrepency in __init__.py:
+
+"compile_static_assets(assets)" not "compile_static_assets(app)" 
+
+#### NameError: name 'app' is not defined
+
+```
+flask  |   File "/usr/src/app/project/assets.py", line 33, in compile_static_assets
+flask  |     if app.config['FLASK_ENV'] == 'development':
+flask  | NameError: name 'app' is not defined
+
+```
+We had taken this out earlier by just eliminating it.
+
+#### ImportError: cannot import name 'User' from 'project' (/usr/src/app/project/__init__.py)
+
+This is a problem in the manage.py file, which we are not using at the moment, so we can eliminate these functions, or comment them out for now.
+
+#### RuntimeError: The session is unavailable because no secret key was set.
+
+```
+RuntimeError: The session is unavailable because no secret key was set.  Set the secret_key on the application to something unique and secret.
+```
+
+For development purposes the SECRET_KEY variable can be whatever.  Let's create an ENV in the dockerfile.
+
+```
+ENV SECRET_KEY 'whatever'
+```
+Of course since we're using NPM our image is huge and this takes forever to compile after seeting an ENV variable.
+
+This did not work, it still resulted in a runtime error.
+
+Instead, we hadd to add this within our config.py file:
+
+```
+    SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "sqlite://")
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+    FLASK_ENV = environ.get('FLASK_ENV')
+    SECRET_KEY = environ.get('SECRET_KEY')
+
+    # Flask-Assets
+    LESS_BIN = environ.get('LESS_BIN')
+    ASSETS_DEBUG = environ.get('ASSETS_DEBUG')
+    LESS_RUN_IN_DEBUG = environ.get('LESS_RUN_IN_DEBUG')
+
+    # Static Assets
+    STATIC_FOLDER = 'static'
+    TEMPLATES_FOLDER = 'templates'
+    COMPRESSOR_DEBUG = environ.get('COMPRESSOR_DEBUG')
+
+    # Flask-SQLAlchemy
+    SQLALCHEMY_DATABASE_URI = environ.get('SQLALCHEMY_DATABASE_URI')
+    SQLALCHEMY_ECHO = False
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+```
+
+The only variable we took out was, FLASK_APP = 'wsgi.py' because we already have this set within our Dockerfile.
+
+Other variables we nee to set include, but hopefully we can comment out for now:
+
+* LESS_BIN
+* ASSETS_DEBUG
+* LESS_RUN_IN_DEBUG
+* COMPRESSOR_DEBUG
+
+Because these are all environ.get variables.
+
+We also needed to add:
+
+```
+from os import environ, path
+from dotenv import load_dotenv
+```
+Note that dotenv is something we were lacking from another tutorial, which reads the variables from a .env file.  We will comment this out for now but need to install it later to get that working.
+
+Once we had this going it was able to work but we were unable to log in.
+
+## Getting Login to Work
+
+We have to select a stronger password.
+
+We used:
+
+test@hello.com
+DDa8G67ZYTy9dlo8
+
+After hitting, "register" we get another error, a jinja2 error.
+
+#### jinja2.exceptions.TemplateNotFound
 
 
-## Webforms on Flask
 
-https://blog.miguelgrinberg.com/post/the-flask-mega-tutorial-part-iii-web-forms
+## Other Pre-Production Work
+
+#### Shrinking Size of Node
+
+https://antonfisher.com/posts/2018/03/19/reducing-docker-image-size-of-a-node-js-application/
+
+
 
 
 ## Pushing Everything to Production
@@ -2545,6 +2788,7 @@ Future Work
 * Redis for database concurrent connections, if in fact we get a lot of activity on the app.
 * Installing Bootstrap locally, rather than grabbing from CDN
 * Migrating data without losing the data
+* Get https://pypi.org/project/python-dotenv/ dotenv working
 
 Flask Bootstrap - serve from a CDN. https://pythonhosted.org/Flask-Bootstrap/
 

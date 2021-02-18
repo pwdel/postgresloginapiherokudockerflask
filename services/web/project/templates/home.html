@@ -1,16 +1,12 @@
-<!DOCTYPE html>
-<html>
-  <body>
-   <div class="home">
+{% extends 'layout.html' %}
 
-	{% extends "base.html" %}
-	{% block title %}Home Page{% endblock %}
-	{% block content %}
-	<h2>Home</h2>
-	<p>This is a test home page. Enjoy!</p>
+{% block css %}
+  <link href="{{ url_for('static', filename='css/home.css') }}" rel="stylesheet">
+{% endblock %}
 
-	{% endblock %}
-
-   </div>
-  </body>
-</html>
+{% block content %}
+    <div class="container">
+        <h1>{{title}}</h1>
+        <p>{{description}}</p>
+    </div>
+{% endblock %}

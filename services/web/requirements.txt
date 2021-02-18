@@ -7,3 +7,7 @@ Flask-Login==0.5.0
 Flask-WTF==0.14.3
 email-validator==1.1.2
 Flask-Assets==2.0
+lesscpy==0.14.0
+cssmin==0.2.0
+jsmin==2.2.2
+lessc==0.1.3
